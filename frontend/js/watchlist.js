@@ -5,16 +5,17 @@ const addInput = document.getElementById('addInput');
 let companies = [];
 
 async function load() {
+  listBox.innerHTML = skeletonRows(3);
   try {
     const data = await api('/api/watchlist');
     if (!data.items.length) {
-      listBox.innerHTML = '<div class="empty">Your watchlist is empty. Add a company above.</div>';
+      listBox.innerHTML = '<div class="empty">Nothing on your watchlist yet. Add a company above.</div>';
       return;
     }
     listBox.innerHTML = data.items.map(function (c) {
       const q = c.quote;
       return '<div class="row"><div class="l">' + logoHtml(c.ticker) +
-        '<div><a href="stock.html?t=' + c.ticker + '"><b>' + esc(c.name) + '</b></a><div class="muted small">' + c.ticker + ' &middot; ' + esc(c.sector) + '</div></div></div>' +
+        '<div><a href="stock.html?t=' + c.ticker + '"><b>' + esc(c.name) + '</b></a><div class="muted small">' + esc(c.sector) + '</div></div></div>' +
         (c.spark && c.spark.length ? '<canvas class="spark" data-t="' + c.ticker + '" style="width:90px;height:34px"></canvas>' : '<span></span>') +
         '<div class="right"><b>' + money(q.price) + '</b><div class="small ' + cls(q.change_pct) + '">' + pct(q.change_pct) + '</div></div>' +
         '<div class="nowrap"><a class="btn sm" href="stock.html?t=' + c.ticker + '">Open</a> ' +

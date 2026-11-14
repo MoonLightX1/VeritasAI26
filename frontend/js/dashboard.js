@@ -1,22 +1,27 @@
 // dashboard page
 
-function statCard(label, value, sub, subClass) {
-  return '<div class="card stat"><div class="label">' + label + '</div><div class="value">' + value +
-    '</div><div class="sub ' + (subClass || 'muted') + '">' + (sub || '&nbsp;') + '</div></div>';
+function statCard(label, value, sub, subClass, main) {
+  return '<div class="stat' + (main ? ' main' : '') + '"><div class="label">' + label + '</div><div class="value">' + value +
+    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') + '</div>';
 }
 
 function stockRow(item) {
   const q = item.quote;
   return '<div class="row"><div class="l">' + logoHtml(item.ticker) +
-    '<div><a href="stock.html?t=' + item.ticker + '"><b>' + esc(item.name) + '</b></a><div class="muted small">' + item.ticker + '</div></div></div>' +
+    '<a href="stock.html?t=' + item.ticker + '"><b>' + esc(item.name) + '</b></a></div>' +
     (item.spark && item.spark.length ? '<canvas class="spark" data-t="' + item.ticker + '" style="width:80px;height:34px"></canvas>' : '') +
     '<div class="right"><div><b>' + money(q.price) + '</b></div><div class="small ' + cls(q.change_pct) + '">' + pct(q.change_pct) + '</div></div></div>';
 }
 
 async function start() {
   const me = await initShell('dashboard.html');
-  document.getElementById('welcome').textContent = 'Welcome, ' + me.display_name;
   document.getElementById('banner').innerHTML = demoBanner();
+  // grey placeholders until the numbers show up
+  document.getElementById('wallet').innerHTML = '<div class="skel skel-big"></div>';
+  document.getElementById('indices').innerHTML = skeletonCards(3);
+  ['watch', 'trending', 'activity', 'viewed'].forEach(function (id) {
+    document.getElementById(id).innerHTML = skeletonRows(3);
+  });
   await load(true);
   // refresh the prices every 30 seconds while the page is open
   setInterval(function () { if (!document.hidden) load(false); }, 30000);
@@ -34,19 +39,18 @@ async function load(first) {
 
   const w = d.wallet;
   document.getElementById('wallet').innerHTML =
-    statCard('Available cash', money(w.cash), 'Ready to practice with') +
-    statCard('Total portfolio value', money(w.total_value), 'Cash plus shares') +
-    statCard('Total profit / loss', signedMoney(w.profit), pct(w.profit_pct) + ' since you started', cls(w.profit)) +
-    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct) + ' daily change', cls(w.day_change));
+    statCard('Portfolio value', money(w.total_value), '', '', true) +
+    statCard('Cash', money(w.cash)) +
+    statCard('All time', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit)) +
+    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change));
   setWallet(w.cash);
 
   document.getElementById('indices').innerHTML = d.indices.map(function (i) {
-    const arrow = i.change_pct >= 0 ? 'up' : 'down';
     return '<div class="card stat"><div class="label">' + esc(i.name) + '</div><div class="value">' +
       Number(i.price).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div>' +
-      '<div class="sub ' + cls(i.change_pct) + '">' + arrow + ' ' + pct(i.change_pct) + '</div>' +
-      '<div class="muted small">' + liveLabel(i) + '</div></div>';
+      '<div class="sub ' + cls(i.change_pct) + '">' + pct(i.change_pct) + '</div></div>';
   }).join('');
+  document.getElementById('indexNote').textContent = d.indices.length ? liveLabel(d.indices[0]) : '';
 
   const watch = document.getElementById('watch');
   if (!d.watchlist.length) {
@@ -59,7 +63,7 @@ async function load(first) {
 
   const act = document.getElementById('activity');
   if (!d.activity.length) {
-    act.innerHTML = '<div class="empty">No practice trades yet. Open a company and try buying a few shares.</div>';
+    act.innerHTML = '<div class="empty">No trades yet. Open a company and buy a few shares.</div>';
   } else {
     act.innerHTML = d.activity.map(function (a) {
       return '<div class="row"><div><span class="pill ' + (a.kind === 'buy' ? '' : 'warn') + '">' + a.kind.toUpperCase() + '</span> ' +

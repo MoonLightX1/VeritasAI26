@@ -4,23 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Watchlist - MoneySprout</title>
-  <script src="js/theme.js?v=4"></script>
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <script src="js/theme.js?v=7"></script>
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
   <div id="page" class="hidden">
     <h1>Watchlist</h1>
-    <p class="muted">Companies you want to keep an eye on. It is saved to your account.</p>
     <div id="banner"></div>
 
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <input type="text" id="addInput" list="companies" placeholder="Add a company by name or ticker">
-          <datalist id="companies"></datalist>
-        </div>
-        <button class="btn" id="addBtn">Add to watchlist</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px">
+      <div style="flex:1;min-width:200px;max-width:480px">
+        <input type="text" id="addInput" list="companies" placeholder="Company name or ticker">
+        <datalist id="companies"></datalist>
       </div>
+      <button class="btn" id="addBtn">Add</button>
     </div>
 
     <div class="card">
@@ -28,7 +25,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=4"></script>
-  <script src="js/watchlist.js?v=4"></script>
+  <script src="js/app.js?v=7"></script>
+  <script src="js/watchlist.js?v=7"></script>
 </body>
 </html>

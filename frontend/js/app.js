@@ -141,8 +141,7 @@ async function initShell(active) {
       '<div class="suggest hidden" id="globalSuggest"></div></div>' +
       '<div class="who">' +
         '<span class="who-name muted">' + esc(me.display_name) + '</span>' +
-        '<a class="cash" href="portfolio.html" title="Pretend money">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
-        (me.is_demo ? '<span class="pill warn">demo</span>' : '') +
+        '<a class="cash" href="portfolio.html">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
         themeButton() +
         '<button class="btn light sm" id="logoutBtn">Log out</button>' +
       '</div>' +
@@ -214,6 +213,26 @@ function liveLabel(q) {
 }
 
 function demoBanner() {
-  return '<div class="banner">Prices come from <b>Yahoo Finance</b> and can be up to about 15 minutes behind. ' +
-    'Trading on MoneySprout uses <b>pretend money only</b>, nothing here is real trading or financial advice.</div>';
+  return '<div class="banner">Pretend money only, not financial advice. Prices come from Yahoo Finance and can run about 15 minutes behind.</div>';
+}
+
+// loading placeholders, grey bars that pulse a little
+function skeletonRows(n) {
+  let out = '';
+  for (let i = 0; i < n; i++) out += '<div class="skel skel-row"></div>';
+  return out;
+}
+
+function skeletonCards(n) {
+  let out = '';
+  for (let i = 0; i < n; i++) out += '<div class="skel skel-card"></div>';
+  return out;
+}
+
+// puts a button in a loading state, call the returned function to undo it
+function busy(btn, text) {
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = text;
+  return function () { btn.disabled = false; btn.textContent = old; };
 }

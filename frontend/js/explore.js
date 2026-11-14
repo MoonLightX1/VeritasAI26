@@ -7,7 +7,7 @@ let timer = null;
 
 async function search() {
   const q = qInput.value.trim();
-  resultsBox.innerHTML = '<div class="muted">Loading...</div>';
+  resultsBox.innerHTML = skeletonCards(6);
   try {
     const data = await api('/api/stocks/search?q=' + encodeURIComponent(q));
     const list = data.results;
@@ -20,7 +20,7 @@ async function search() {
       const qt = c.quote;
       return '<a class="card stock-card" href="stock.html?t=' + c.ticker + '">' +
         '<div class="row" style="border:none;padding:0 0 8px"><div class="l">' + logoHtml(c.ticker) +
-        '<div><b>' + esc(c.name) + '</b><div class="muted small">' + c.ticker + ' &middot; ' + esc(c.exchange) + '</div></div></div>' +
+        '<div><b>' + esc(c.name) + '</b><div class="muted small">' + esc(c.exchange) + '</div></div></div>' +
         '<div class="right"><b>' + money(qt.price) + '</b><div class="small ' + cls(qt.change_pct) + '">' + pct(qt.change_pct) + '</div></div></div>' +
         '<p class="muted small" style="margin:0">' + esc(c.description) + '</p></a>';
     }).join('');
@@ -36,7 +36,6 @@ qInput.addEventListener('input', function () {
 
 async function start() {
   await initShell('explore.html');
-  document.getElementById('banner').innerHTML = demoBanner();
   const params = new URLSearchParams(location.search);
   if (params.get('q')) qInput.value = params.get('q');
   search();

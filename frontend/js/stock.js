@@ -2,8 +2,8 @@
 
 const params = new URLSearchParams(location.search);
 const TICKER = (params.get('t') || '').toUpperCase();
-const RANGES = [['1D', '1 Day'], ['1W', '1 Week'], ['1M', '1 Month'], ['3M', '3 Months'],
-  ['6M', '6 Months'], ['1Y', '1 Year'], ['5Y', '5 Years'], ['MAX', 'Max']];
+const RANGES = [['1D', '1D'], ['1W', '1W'], ['1M', '1M'], ['3M', '3M'],
+  ['6M', '6M'], ['1Y', '1Y'], ['5Y', '5Y'], ['MAX', 'Max']];
 const TOOLS = [['none', 'Cursor'], ['pen', 'Pencil'], ['line', 'Line'], ['hline', 'Price line'],
   ['vline', 'Date line'], ['arrow', 'Arrow'], ['rect', 'Rectangle'], ['circle', 'Circle'],
   ['text', 'Text'], ['eraser', 'Eraser']];
@@ -36,7 +36,7 @@ function buildTools() {
     }).join('') +
     '<span class="sep"></span>' +
     '<input type="color" id="colorPick" value="#5b6cd6" title="Drawing color">' +
-    '<span class="sep"></span>' +
+    '<span class="brk"></span>' +
     '<button class="chip" id="undoBtn">Undo</button>' +
     '<button class="chip" id="redoBtn">Redo</button>' +
     '<button class="chip" id="clearBtn">Clear all</button>' +
@@ -89,7 +89,7 @@ function setUnsaved(v) {
 
 async function loadHistory() {
   const msg = document.getElementById('chartMsg');
-  msg.textContent = 'Loading chart...';
+  msg.innerHTML = '<div class="skel" style="width:100%;height:100%"></div>';
   msg.classList.remove('hidden');
   const mine = ++loadToken;
   try {
@@ -122,6 +122,7 @@ async function liveRefresh() {
 }
 
 async function saveShapes() {
+  const done = busy(document.getElementById('saveBtn'), 'Saving...');
   try {
     await api('/api/annotations/' + TICKER, { method: 'PUT', body: { shapes: chart.shapes } });
     setUnsaved(false);
@@ -129,6 +130,7 @@ async function saveShapes() {
   } catch (e) {
     toast(e.message, true);
   }
+  done();
 }
 
 async function loadShapes(showToast) {
@@ -145,13 +147,13 @@ async function loadShapes(showToast) {
 function renderHead() {
   const q = stock.quote;
   document.title = stock.name + ' (' + stock.ticker + ') - MoneySprout';
-  document.getElementById('head').innerHTML = logoHtml(stock.ticker, true) +
-    '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted" style="font-size:18px">' + stock.ticker + '</span></h1>' +
+  document.getElementById('head').innerHTML = '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted mono" style="font-size:16px">' + stock.ticker + '</span></h1>' +
     '<div class="muted small">' + esc(stock.exchange) + ' &middot; ' + esc(stock.sector) + '</div>' +
     '<div><span class="price">' + money(q.price) + '</span> <span class="' + cls(q.change) + '"><b>' +
     signedMoney(q.change) + ' (' + pct(q.change_pct) + ')</b></span></div>' +
     '<div class="muted small">' + liveLabel(q) + '</div></div>';
 
+  document.getElementById('aboutTitle').textContent = 'About ' + stock.name;
   document.getElementById('desc').textContent = stock.description;
   const facts = [
     ['Industry', stock.industry],
@@ -196,8 +198,7 @@ function openTrade(mode) {
 
   host.innerHTML =
     '<div class="modal-bg" id="mbg"><div class="modal">' +
-      '<h2>Practice trade: ' + esc(stock.name) + ' (' + stock.ticker + ')</h2>' +
-      '<div class="banner">Pretend money only. No real trade is made.</div>' +
+      '<h2>Trade ' + esc(stock.name) + '</h2>' +
       '<div class="tabs"><button class="chip" data-m="buy">Buy</button><button class="chip" data-m="sell">Sell</button></div>' +
       '<div id="modalBody"></div>' +
     '</div></div>';
@@ -216,12 +217,12 @@ function openTrade(mode) {
     if (mode === 'buy') {
       body.innerHTML =
         '<div class="summary-box"><div><span>Latest price</span><b>' + money(q.price) + '</b></div>' +
-        '<div><span>Your virtual cash</span><b>' + money(cash) + '</b></div></div>' +
+        '<div><span>Cash</span><b>' + money(cash) + '</b></div></div>' +
         '<div class="tabs"><button class="chip" data-i="shares">By shares</button><button class="chip" data-i="amount">By dollars</button></div>' +
         '<div class="field"><label id="inLabel"></label><input type="number" id="amt" min="0" step="any"></div>' +
         '<div class="summary-box" id="calc"></div>' +
         '<div id="tradeErr" class="banner err hidden"></div>' +
-        '<button class="btn block" id="go">Confirm practice purchase</button>';
+        '<button class="btn block" id="go">Buy</button>';
     } else {
       body.innerHTML =
         '<div class="summary-box"><div><span>Latest price</span><b>' + money(q.price) + '</b></div>' +
@@ -231,7 +232,7 @@ function openTrade(mode) {
             '<button class="btn light sm" id="allBtn" style="margin-top:6px">Sell all</button></div>' +
             '<div class="summary-box" id="calc"></div>' +
             '<div id="tradeErr" class="banner err hidden"></div>' +
-            '<button class="btn block" id="go">Confirm practice sale</button>'
+            '<button class="btn block" id="go">Sell</button>'
           : '<div class="empty">You do not own any shares of this company yet.</div>');
     }
     wireBody();
@@ -257,7 +258,7 @@ function openTrade(mode) {
       const f = figure();
       if (mode === 'buy') {
         const label = document.getElementById('inLabel');
-        label.textContent = inputMode === 'shares' ? 'Number of shares' : 'Amount of virtual dollars';
+        label.textContent = inputMode === 'shares' ? 'Number of shares' : 'Amount in dollars';
         host.querySelectorAll('[data-i]').forEach(function (b) { b.classList.toggle('on', b.dataset.i === inputMode); });
       }
       if (!f) { calc.innerHTML = '<div class="muted">Enter an amount to see a summary.</div>'; return; }
@@ -290,7 +291,7 @@ function openTrade(mode) {
         return;
       }
       const btn = this;
-      btn.disabled = true;
+      const done = busy(btn, mode === 'buy' ? 'Buying...' : 'Selling...');
       try {
         let r;
         if (mode === 'buy') {
@@ -311,7 +312,7 @@ function openTrade(mode) {
         if (e.status === 403) text += ' You can ask in Settings.';
         err.textContent = text;
         err.classList.remove('hidden');
-        btn.disabled = false;
+        done();
       }
     };
   }

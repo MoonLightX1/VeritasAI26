@@ -4,36 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard - MoneySprout</title>
-  <script src="js/theme.js?v=4"></script>
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <script src="js/theme.js?v=7"></script>
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
   <div id="page" class="hidden">
-    <h1 id="welcome">Welcome</h1>
-    <p class="muted">MoneySprout lets you explore companies, read their charts and practice investing with pretend money. Take your time and see how prices move.</p>
     <div id="banner"></div>
 
-    <h2>Your virtual wallet</h2>
-    <div class="grid four" id="wallet"></div>
+    <div class="summary" id="wallet"></div>
 
-    <h2 style="margin-top:24px">Market overview</h2>
-    <div class="grid three" id="indices"></div>
+    <div class="grid three block-gap" id="indices"></div>
+    <p class="muted small" id="indexNote" style="margin:8px 0 0"></p>
 
-    <div class="grid two" style="margin-top:24px">
+    <div class="grid two block-gap">
       <div class="card">
-        <h2>Watchlist</h2>
+        <h2>Your watchlist</h2>
         <div id="watch"></div>
       </div>
       <div class="card">
-        <h2>Trending today</h2>
-        <p class="muted small">Biggest price moves today among the 20 companies.</p>
+        <h2>Biggest movers today</h2>
         <div id="trending"></div>
       </div>
     </div>
 
-    <div class="grid two" style="margin-top:16px">
+    <div class="grid two block-gap">
       <div class="card">
-        <h2>Recent activity</h2>
+        <h2>Your last trades</h2>
         <div id="activity"></div>
       </div>
       <div class="card">
@@ -43,7 +39,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=4"></script>
-  <script src="js/dashboard.js?v=4"></script>
+  <script src="js/app.js?v=7"></script>
+  <script src="js/dashboard.js?v=7"></script>
 </body>
 </html>

@@ -1,26 +1,29 @@
 // portfolio page
 
-function card(label, value, sub, subClass) {
-  return '<div class="card stat"><div class="label">' + label + '</div><div class="value">' + value +
-    '</div><div class="sub ' + (subClass || 'muted') + '">' + (sub || '&nbsp;') + '</div></div>';
+function card(label, value, sub, subClass, main) {
+  return '<div class="stat' + (main ? ' main' : '') + '"><div class="label">' + label + '</div><div class="value">' + value +
+    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') + '</div>';
 }
 
 async function start() {
   await initShell('portfolio.html');
   document.getElementById('banner').innerHTML = demoBanner();
+  document.getElementById('summary').innerHTML = '<div class="skel skel-big"></div>';
+  document.getElementById('holdings').innerHTML = skeletonRows(3);
+  document.getElementById('tx').innerHTML = skeletonRows(3);
 
   try {
     const p = await api('/api/portfolio');
     setWallet(p.cash);
     document.getElementById('summary').innerHTML =
-      card('Total value', money(p.total_value), 'Cash plus shares') +
-      card('Available cash', money(p.cash), 'Virtual money') +
-      card('Amount invested', money(p.invested), 'Cost of shares you own') +
+      card('Portfolio value', money(p.total_value), '', '', true) +
+      card('Cash', money(p.cash)) +
+      card('Invested', money(p.invested)) +
       card('Profit / loss', signedMoney(p.profit), pct(p.profit_pct), cls(p.profit));
 
     const hb = document.getElementById('holdings');
     if (!p.holdings.length) {
-      hb.innerHTML = '<div class="empty">You do not own any shares yet. <a href="explore.html">Explore companies</a> to get started.</div>';
+      hb.innerHTML = '<div class="empty">No shares yet. <a href="explore.html">Find a company</a> to buy your first.</div>';
     } else {
       hb.innerHTML = '<table><thead><tr><th>Company</th><th class="right">Shares</th><th class="right">Avg price</th>' +
         '<th class="right">Latest price</th><th class="right">Value</th><th class="right">Profit / loss</th></tr></thead><tbody>' +
