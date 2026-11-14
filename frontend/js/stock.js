@@ -15,6 +15,7 @@ let unsaved = false;
 let loadToken = 0;
 let view = 'actual';      // 'actual' or 'pred', which graph they are looking at
 let predToken = 0;
+let sumToken = 0;
 const predCache = {};     // range -> { at, data }, so flipping back and forth is instant
 const PRED_FRESH = 5 * 60 * 1000;
 
@@ -54,9 +55,49 @@ function setView(v) {
   if (v === 'actual') {
     chart.clearPrediction();
     document.getElementById('predictInfo').classList.add('hidden');
+    showSide(false);
   } else {
     loadPrediction();
   }
+}
+
+function showSide(on) {
+  document.getElementById('aiSide').classList.toggle('hidden', !on);
+  document.getElementById('chartLayout').classList.toggle('has-side', on);
+  chart.resize();
+}
+
+// the side panel: why it looks this way, the AI's call, and the AI's summary
+function renderSide(p) {
+  const s = p.sentiment;
+  const side = document.getElementById('aiSide');
+  function driverList(title, list, cls) {
+    if (!list.length) return '';
+    return '<div class="small ' + cls + '" style="margin-top:6px"><b>' + title + '</b></div><ul class="drivers">' +
+      list.map(function (n) {
+        return '<li><a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) + '</a></li>';
+      }).join('') + '</ul>';
+  }
+  const ai = p.ai || {};
+  const call = ai.used
+    ? '<p><b>AI prediction:</b> ' + ({ up: 'up', down: 'down', flat: 'stable' }[ai.outlook] || 'see line') +
+      ' (<span class="' + cls(ai.change_pct) + '">' + pct(ai.change_pct) + '</span>)' +
+      (ai.confidence ? ', ' + esc(ai.confidence) + ' confidence' : '') +
+      '<br><span class="muted small">The trend + news method alone said ' + pct(ai.stat_change_pct) + '.</span></p>'
+    : '<p class="muted small">The AI did not make this prediction' + (ai.note ? ': ' + esc(ai.note) : '') +
+      '. It uses the trend + news method.</p>';
+  const sum = p.summary || { text: '', ai: false, note: '' };
+  side.innerHTML =
+    '<h3>Why it looks ' + esc(s.label === 'neutral' ? 'stable' : s.label) + '</h3>' +
+    '<div style="margin-bottom:6px">' + toneBadge(s.score) + ' <span class="muted small">' + esc(p.counts) + '</span></div>' +
+    '<p>' + esc(p.why) + '</p>' +
+    driverList('Pushing it up', p.drivers.positive, 'up') +
+    driverList('Pushing it down', p.drivers.negative, 'down') +
+    '<h3 style="margin-top:14px">AI summary</h3>' + call +
+    '<p>' + esc(sum.text) + '</p>' +
+    '<span class="ai-tag">' + (sum.ai ? 'Written by ' + esc(sum.by) : 'Auto summary, AI model not used') + '</span>' +
+    (!sum.ai && sum.note ? '<div class="muted small" style="margin-top:4px">' + esc(sum.note) + '</div>' : '');
+  showSide(true);
 }
 
 function toneBadge(score) {
@@ -72,12 +113,12 @@ function renderPredictInfo(p) {
   box.innerHTML =
     '<div class="pi-head"><b>News mood:</b> ' + toneBadge(s.score) + ' <b>' + esc(s.label) + '</b>' +
     '<span class="muted small">from ' + s.articles + ' recent headline' + (s.articles === 1 ? '' : 's') +
-    ' &middot; scored by ' + esc(s.engine) + '</span></div>' +
+    ' &middot; scored by ' + esc(s.engine) + '</span></div>' + (s.engine_note ? '<div class="muted small">Model: ' + esc(s.engine_note) + '</div>' : '') + +
     '<div>' + esc(p.why) + ' The dashed line ends around <b>' + money(p.to_price) + '</b> <span class="' + (dir === 'up' ? 'up' : 'down') + '">(' +
     pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
     (p.news.length
       ? '<ul>' + p.news.map(function (n) {
-          return '<li>' + toneBadge(n.score) + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
+          return '<li>' + toneBadge(n.score) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
             '</a><span class="src">' + esc(n.publisher) + '</span></li>';
         }).join('') + '</ul>'
       : '<div class="muted small" style="margin-top:6px">No recent news came back, so this follows the price trend only.</div>') +
@@ -85,31 +126,86 @@ function renderPredictInfo(p) {
   box.classList.remove('hidden');
 }
 
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+// the popup that shows what the prediction is doing, step by step
+function openProgress(onCancel) {
+  const host = document.getElementById('modalHost');
+  const icons = { pending: '&#9675;', done: '&#10003;', warn: '!', skipped: '&ndash;', error: '&times;' };
+  host.innerHTML =
+    '<div class="modal-bg"><div class="modal" style="max-width:560px">' +
+      '<h2>Predicting ' + esc(stock.name) + '</h2>' +
+      '<p class="muted small" id="pgSub">Starting...</p>' +
+      '<ul class="steps" id="pgSteps"></ul>' +
+      '<div id="pgErr" class="banner err hidden"></div>' +
+      '<p class="muted small" id="pgHint">The first prediction can take a few minutes while the AI model loads. After that it is much faster.</p>' +
+      '<button class="btn light" id="pgCancel">Cancel</button>' +
+    '</div></div>';
+  document.getElementById('pgCancel').onclick = onCancel;
+  return {
+    update: function (st) {
+      document.getElementById('pgSub').textContent = 'Working for ' + st.elapsed + 's';
+      document.getElementById('pgSteps').innerHTML = st.steps.map(function (x) {
+        const ic = x.status === 'running' ? '<span class="spin"></span>' : (icons[x.status] || icons.pending);
+        return '<li class="' + x.status + '"><span class="ic">' + ic + '</span><div><b>' + esc(x.title) + '</b>' +
+          (x.detail ? '<div class="muted small">' + esc(x.detail) + '</div>' : '') + '</div></li>';
+      }).join('');
+    },
+    fail: function (msg) {
+      const e = document.getElementById('pgErr');
+      e.textContent = msg;
+      e.classList.remove('hidden');
+      document.getElementById('pgCancel').textContent = 'Close';
+    },
+    close: function () { host.innerHTML = ''; }
+  };
+}
+
+function applyPrediction(p) {
+  chart.setPrediction(p.points);
+  renderPredictInfo(p);
+  renderSide(p);
+}
+
 async function loadPrediction() {
   if (view !== 'pred') return;
   const mine = ++predToken;
-  const state = document.getElementById('predState');
   const hit = predCache[range];
-  let p;
-  if (hit && Date.now() - hit.at < PRED_FRESH) {
-    p = hit.data;
-  } else {
-    state.textContent = 'Reading the news...';
+  if (hit && Date.now() - hit.at < PRED_FRESH) { applyPrediction(hit.data); return; }
+
+  const pop = openProgress(function () { pop.close(); setView('actual'); });
+  let jid;
+  try {
+    jid = (await api('/api/stocks/' + TICKER + '/predict/start?range=' + range, { method: 'POST' })).job;
+  } catch (e) {
+    pop.close();
+    toast(e.message, true);
+    setView('actual');
+    return;
+  }
+  let fails = 0;
+  while (true) {
+    await sleep(700);
+    if (mine !== predToken || view !== 'pred') { pop.close(); return; } // cancelled or changed range
+    let st;
     try {
-      p = await api('/api/stocks/' + TICKER + '/predict?range=' + range);
-      predCache[range] = { at: Date.now(), data: p };
+      st = await api('/api/stocks/job/' + jid);
+      fails = 0;
     } catch (e) {
-      if (mine !== predToken) return;
-      toast(e.message, true);
-      setView('actual');
+      if (++fails < 4) continue;
+      pop.fail(e.message);
       return;
     }
+    pop.update(st);
+    if (!st.done) continue;
+    if (st.error) { pop.fail(st.error); return; }
+    await sleep(900); // let them see the last steps tick over
+    if (mine !== predToken || view !== 'pred') { pop.close(); return; }
+    pop.close();
+    predCache[range] = { at: Date.now(), data: st.result };
+    applyPrediction(st.result);
+    return;
   }
-  // they switched view or range while we waited
-  if (mine !== predToken || view !== 'pred') return;
-  state.textContent = '';
-  chart.setPrediction(p.points);
-  renderPredictInfo(p);
 }
 
 function buildTools() {

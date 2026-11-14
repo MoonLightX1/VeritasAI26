@@ -21,22 +21,25 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="ranges" id="ranges"></div>
+    <div class="chart-layout" id="chartLayout">
+      <div class="card">
+        <div class="ranges" id="ranges"></div>
 
-      <div class="predict-bar" id="predictBar"></div>
+        <div class="predict-bar" id="predictBar"></div>
 
-      <div class="tools" id="tools"></div>
+        <div class="tools" id="tools"></div>
 
-      <div class="chart-box">
-        <canvas id="chart"></canvas>
-        <div class="chart-msg" id="chartMsg"><div class="skel" style="width:100%;height:100%"></div></div>
+        <div class="chart-box">
+          <canvas id="chart"></canvas>
+          <div class="chart-msg" id="chartMsg"><div class="skel" style="width:100%;height:100%"></div></div>
+        </div>
+        <p class="muted small" style="margin:8px 0 0">
+          Drag to pan, scroll to zoom. Bars at the bottom are trading volume.
+          <span id="saveState"></span>
+        </p>
+        <div class="predict-info hidden" id="predictInfo"></div>
       </div>
-      <p class="muted small" style="margin:8px 0 0">
-        Drag to pan, scroll to zoom. Bars at the bottom are trading volume.
-        <span id="saveState"></span>
-      </p>
-      <div class="predict-info hidden" id="predictInfo"></div>
+      <aside class="card ai-side hidden" id="aiSide"></aside>
     </div>
 
     <div class="card block-gap">
