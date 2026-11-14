@@ -8,7 +8,7 @@ import datetime as dt
 
 from config import SESSION_HOURS, REMEMBER_DAYS
 
-ITERATIONS = 200_000
+ITERATIONS = 600_000
 
 
 def hash_password(password):
@@ -42,6 +42,8 @@ def password_problem(pw):
 
 def new_session(db, user_id, remember):
     token = secrets.token_urlsafe(32)
+    # clean out dead sessions while we are here
+    db.execute("DELETE FROM sessions WHERE expires_at < ?", (dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",))
     if remember:
         exp = dt.datetime.utcnow() + dt.timedelta(days=REMEMBER_DAYS)
     else:
@@ -54,6 +56,9 @@ def new_session(db, user_id, remember):
     return token, exp
 
 
+# fake hash so a wrong username takes as long as a wrong password
+DUMMY_HASH = hash_password("not-a-real-password-1")
+
 # very basic in memory rate limit, good enough for a demo
 _hits = {}
 
@@ -63,4 +68,9 @@ def too_many(key, limit=10, window=300):
     arr = [x for x in _hits.get(key, []) if t - x < window]
     arr.append(t)
     _hits[key] = arr
+    # do not let the dict grow forever
+    if len(_hits) > 5000:
+        for k in list(_hits.keys()):
+            if not _hits[k] or t - _hits[k][-1] > 3600:
+                del _hits[k]
     return len(arr) > limit

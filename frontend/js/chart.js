@@ -7,10 +7,11 @@ class StockChart {
     this.ctx = canvas.getContext('2d');
     this.data = [];
     this.intraday = false;
+    this.tz = 'UTC'; // intraday labels use the exchange timezone
     this.v0 = 0; // first visible index (can be fractional)
     this.v1 = 1; // last visible index
     this.tool = 'none';
-    this.color = '#2563eb';
+    this.color = '#5b6cd6';
     this.shapes = [];
     this.undoStack = [];
     this.redoStack = [];
@@ -32,12 +33,28 @@ class StockChart {
 
   // data
 
-  setData(points, intraday) {
+  setData(points, intraday, tz) {
     this.data = points;
     this.intraday = intraday;
+    this.tz = intraday ? (tz || 'America/New_York') : 'UTC';
     this.v0 = 0;
     this.v1 = Math.max(1, points.length - 1);
     this.hover = null;
+    this.draw();
+  }
+
+  // swap in fresh live data without throwing away the zoom
+  refreshData(points) {
+    const old = this.data.length;
+    const atEnd = this.v1 >= old - 1.5;
+    const width = this.v1 - this.v0;
+    this.data = points;
+    if (!old || points.length < 2) { this.v0 = 0; this.v1 = Math.max(1, points.length - 1); }
+    else if (atEnd) {
+      // stay glued to the newest point
+      this.v1 = points.length - 1;
+      this.v0 = Math.max(0, this.v1 - width);
+    }
     this.draw();
   }
 
@@ -135,7 +152,7 @@ class StockChart {
 
   fmtTime(t, full) {
     const d = new Date(t);
-    const opts = { timeZone: 'UTC' };
+    const opts = { timeZone: this.tz };
     if (this.intraday) {
       if (full) return d.toLocaleString('en-US', Object.assign({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, opts));
       return d.toLocaleString('en-US', Object.assign({ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, opts));
@@ -148,12 +165,12 @@ class StockChart {
     const css = getComputedStyle(document.documentElement);
     const get = (n, d) => css.getPropertyValue(n).trim() || d;
     return {
-      text: get('--text', '#14231b'),
-      muted: get('--muted', '#6b7a72'),
-      line: get('--line', '#eee9dd'),
+      text: get('--text', '#1d1d1b'),
+      muted: get('--muted', '#77746a'),
+      line: get('--line', '#d8d3c4'),
       card: get('--card', '#ffffff'),
-      up: get('--up', '#1f9d55'),
-      down: get('--down', '#d93f3f')
+      up: get('--up', '#2e7d4f'),
+      down: get('--down', '#b8392e')
     };
   }
 
@@ -199,7 +216,7 @@ class StockChart {
       const d = new Date(t);
       let label;
       if (this.intraday) {
-        label = d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        label = d.toLocaleString('en-US', { timeZone: this.tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
       } else if (this.v1 - this.v0 > 600) {
         label = d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', year: 'numeric' });
       } else {
@@ -220,8 +237,8 @@ class StockChart {
     const base = this.plotBottom;
     const maxH = (this.plotBottom - this.pad.t) * this.volFrac;
     const barW = Math.max(1, (this.pw / (this.v1 - this.v0)) * 0.7);
-    ctx.fillStyle = this.c.up;
-    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = this.c.muted;
+    ctx.globalAlpha = 0.25;
     for (let i = r[0]; i <= r[1]; i++) {
       const x = this.xOfIdx(i);
       if (x < this.pad.l - 2 || x > this.w - this.pad.r + 2) continue;
@@ -247,28 +264,13 @@ class StockChart {
     const start = Math.max(0, r[0] - 1);
     const end = Math.min(this.data.length - 1, r[1] + 1);
 
-    // soft fill under the line
-    const grad = ctx.createLinearGradient(0, this.pad.t, 0, this.priceBottom);
-    grad.addColorStop(0, this.rgba(col, 0.22));
-    grad.addColorStop(1, this.rgba(col, 0));
-    ctx.beginPath();
-    for (let i = start; i <= end; i++) {
-      const x = this.xOfIdx(i), y = this.yOfPrice(this.data[i].c);
-      if (i === start) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.lineTo(this.xOfIdx(end), this.priceBottom);
-    ctx.lineTo(this.xOfIdx(start), this.priceBottom);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-
     ctx.beginPath();
     for (let i = start; i <= end; i++) {
       const x = this.xOfIdx(i), y = this.yOfPrice(this.data[i].c);
       if (i === start) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.lineJoin = 'round';
     ctx.stroke();
     ctx.restore();
@@ -309,11 +311,9 @@ class StockChart {
     let bx = x + 12;
     if (bx + bw > this.w - this.pad.r) bx = x - bw - 12;
     let by = Math.max(this.pad.t, Math.min(y - bh / 2, this.plotBottom - bh));
-    ctx.fillStyle = 'rgba(15,40,28,0.94)';
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 8);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this.c.text;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = this.c.card;
     ctx.textAlign = 'left';
     lines.forEach(function (l, i) { ctx.fillText(l, bx + 8, by + 18 + i * 16); });
     ctx.restore();
@@ -350,7 +350,7 @@ class StockChart {
     o.drawImage(src, 0, head);
     o.fillStyle = this.c.muted;
     o.font = 11 * dpr + 'px system-ui, sans-serif';
-    o.fillText('MoneySprout - simulated demo data, not real prices', 14 * dpr, out.height - 10 * dpr);
+    o.fillText('MoneySprout, data from Yahoo Finance, may be delayed. Practice only.', 14 * dpr, out.height - 10 * dpr);
     out.toBlob(function (blob) {
       if (!blob) return;
       const url = URL.createObjectURL(blob);

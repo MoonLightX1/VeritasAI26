@@ -28,9 +28,14 @@
 
   // button html, pages drop this in wherever they want the toggle
   window.themeButton = function () {
-    return '<button class="btn light sm theme-btn" type="button" onclick="toggleTheme()">' +
+    return '<button class="btn light sm theme-btn" type="button">' +
       (window.currentTheme() === 'dark' ? 'Light' : 'Dark') + '</button>';
   };
+
+  // one click listener for every theme button (no inline onclick so the csp can stay strict)
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('.theme-btn')) window.toggleTheme();
+  });
 
   document.documentElement.setAttribute('data-theme', saved() || (systemDark() ? 'dark' : 'light'));
 })();

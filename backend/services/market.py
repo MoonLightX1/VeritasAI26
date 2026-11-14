@@ -1,13 +1,18 @@
-import bisect
-import calendar
-import hashlib
-import math
-import random
+import json
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 
-# All prices here are SIMULATED demo data. They are not real market prices.
-# Same ticker always gives the same history (seeded), so the demo is stable.
+# Real market data from Yahoo Finance's public chart feed. No api key.
+# It is free but unofficial, so it can be slow, rate limited or change one day.
+# US prices are live or up to about 15 minutes behind depending on the stock.
+# Everything goes through fetch_chart() so swapping the source later is one place.
 
+# (the last two numbers in each row are old simulation leftovers, not used anymore)
 COMPANIES = [
     ("AAPL", "Apple", "NASDAQ", "Technology", "Consumer Electronics", "Cupertino, California", 1976, 210.0, 0.017,
      "Makes the iPhone, Mac computers, iPad and Apple Watch, and sells apps and services."),
@@ -51,173 +56,251 @@ COMPANIES = [
      "Builds cars, trucks and SUVs, including the F-150 and Mustang."),
 ]
 
-# fake index levels, also simulated
-INDICES = [
-    ("SPX", "S&P 500 (demo)", 5900.0, 0.008),
-    ("IXIC", "NASDAQ Composite (demo)", 19000.0, 0.011),
-    ("DJI", "Dow Jones (demo)", 43000.0, 0.007),
-]
 
-START_DATE = dt.date(2016, 1, 4)
-ANCHOR_DATE = dt.date(2026, 1, 2)
+# index symbols on yahoo
+INDICES = [
+    ("SPX", "S&P 500", "^GSPC"),
+    ("IXIC", "NASDAQ Composite", "^IXIC"),
+    ("DJI", "Dow Jones", "^DJI"),
+]
 
 BY_TICKER = {}
 for c in COMPANIES:
     BY_TICKER[c[0]] = {
         "ticker": c[0], "name": c[1], "exchange": c[2], "sector": c[3], "industry": c[4],
-        "headquarters": c[5], "founded": c[6], "base": c[7], "vol": c[8], "description": c[9],
+        "headquarters": c[5], "founded": c[6], "description": c[9],
     }
-for i in INDICES:
-    BY_TICKER[i[0]] = {"ticker": i[0], "name": i[1], "base": i[2], "vol": i[3], "index": True}
 
-_cache = {}
+SOURCE = "Yahoo Finance"
+
+# range name -> (yahoo range, yahoo interval, how long to cache in seconds)
+RANGE_MAP = {
+    "1D": ("1d", "1m", 20),
+    "1W": ("5d", "15m", 60),
+    "1M": ("1mo", "1d", 600),
+    "3M": ("3mo", "1d", 600),
+    "6M": ("6mo", "1d", 600),
+    "1Y": ("1y", "1d", 600),
+    "5Y": ("5y", "1d", 3600),
+    "MAX": ("max", "1wk", 3600),
+}
+
+QUOTE_TTL = 20      # seconds, shared by every user so yahoo only sees us once per 20s per stock
+STALE_OK = 6 * 3600  # if yahoo is down we can show an older copy for this long (and say so)
+
+
+class MarketUnavailable(Exception):
+    pass
+
+
+_cache = {}          # key -> (time fetched, data)
+_locks = {}          # key -> lock, so two users do not fetch the same thing at once
+_locks_guard = threading.Lock()
+_pool = ThreadPoolExecutor(max_workers=8)
 
 
 def is_company(ticker):
-    t = BY_TICKER.get(ticker.upper())
-    return bool(t) and not t.get("index")
+    return (ticker or "").upper() in BY_TICKER
 
 
-def _seed(text):
-    return int(hashlib.sha256(text.encode()).hexdigest()[:12], 16)
+def _lock_for(key):
+    with _locks_guard:
+        if key not in _locks:
+            _locks[key] = threading.Lock()
+        return _locks[key]
 
 
-def _weekdays(start, end):
-    d = start
-    while d <= end:
-        if d.weekday() < 5:
-            yield d
-        d += dt.timedelta(days=1)
+# yahoo has two hostnames, if one is being grumpy we try the other
+HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
+
+# if yahoo just failed we stop asking for a few seconds so pages do not hang
+_down_until = 0.0
 
 
-def daily(ticker):
-    # build the whole daily series, cached per ticker per day
-    ticker = ticker.upper()
-    today = dt.date.today()
-    key = (ticker, today)
-    if key in _cache:
-        return _cache[key]
-    info = BY_TICKER[ticker]
-    rng = random.Random(_seed(ticker))
-    vol = info["vol"]
-    price = 100.0
-    raw = []
-    regime = 1.0
-    for i, d in enumerate(_weekdays(START_DATE, today)):
-        # volatility changes slowly so charts look less boring
-        if i % 40 == 0:
-            regime = rng.uniform(0.6, 1.6)
-        ret = 0.0004 + vol * regime * rng.gauss(0, 1)
-        price *= math.exp(ret)
-        volume = int(info["base"] * 0 + 5_000_000 * rng.uniform(0.6, 1.5) * (1 + abs(ret) * 25))
-        raw.append((d, price, volume))
-    # scale so price on the anchor date matches the base price (keeps old prices stable)
-    anchor_raw = next((p for d, p, v in raw if d >= ANCHOR_DATE), raw[-1][1])
-    scale = info["base"] / anchor_raw
-    out = []
-    for d, p, v in raw:
-        t = calendar.timegm(dt.datetime(d.year, d.month, d.day, 20, 0).timetuple()) * 1000
-        out.append({"t": t, "c": round(p * scale, 2), "v": v})
-    # drop old cache entries
-    for k in [k for k in _cache if k[0] == ticker and k != key]:
-        del _cache[k]
-    _cache[key] = out
-    return out
+def fetch_chart(symbol, rng, interval):
+    # the one function that talks to yahoo, returns the parsed json "result" or raises
+    global _down_until
+    if time.time() < _down_until:
+        raise MarketUnavailable("Market data provider is not answering right now.")
+
+    path = "/v8/finance/chart/%s?range=%s&interval=%s&includePrePost=false&events=div%%2Csplit" % (
+        urllib.parse.quote(symbol, safe=""), rng, interval)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://finance.yahoo.com/",
+    }
+
+    last = "Could not reach the market data provider."
+    blocked = False
+    for attempt in range(2):
+        for host in HOSTS:
+            req = urllib.request.Request("https://" + host + path, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=6) as r:
+                    data = json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                last = "Market data provider said %s." % e.code
+                blocked = e.code in (429, 403) or e.code >= 500
+                continue
+            except Exception:
+                last = "Could not reach the market data provider."
+                blocked = True
+                continue
+            res = (data.get("chart") or {}).get("result")
+            if res:
+                return res[0]
+            last = "No market data came back for %s." % symbol
+        time.sleep(0.4)
+
+    if blocked:
+        _down_until = time.time() + 8
+    raise MarketUnavailable(last)
 
 
-def _intraday(ticker, day_index, bars, step_minutes):
-    # walks from the previous close to this day's close with a bridge
-    series = daily(ticker)
-    prev = series[day_index - 1]["c"]
-    close = series[day_index]["c"]
-    total_volume = series[day_index]["v"]
-    day_ms = series[day_index]["t"]
-    d = dt.datetime.utcfromtimestamp(day_ms / 1000)
-    start = calendar.timegm(dt.datetime(d.year, d.month, d.day, 9, 30).timetuple()) * 1000
-    rng = random.Random(_seed("%s-%d" % (ticker, day_ms)))
-    vol = BY_TICKER[ticker]["vol"] / math.sqrt(bars) * 0.8
-    walk = [0.0]
-    for _ in range(bars):
-        walk.append(walk[-1] + rng.gauss(0, vol))
-    out = []
-    for i in range(1, bars + 1):
-        frac = i / bars
-        # bridge so the last bar lands on the real close
-        bridged = walk[i] - frac * walk[bars]
-        price = (prev + (close - prev) * frac) * math.exp(bridged)
-        if i == bars:
-            price = close
-        out.append({
-            "t": start + (i - 1) * step_minutes * 60000,
-            "c": round(price, 2),
-            "v": int(total_volume / bars * rng.uniform(0.5, 1.6)),
-        })
-    return out
+def _parse(result):
+    meta = result.get("meta") or {}
+    ts = result.get("timestamp") or []
+    q = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    closes = q.get("close") or []
+    vols = q.get("volume") or []
+    pts = []
+    for i, t in enumerate(ts):
+        c = closes[i] if i < len(closes) else None
+        if c is None:
+            continue
+        v = vols[i] if i < len(vols) and vols[i] is not None else 0
+        pts.append({"t": int(t) * 1000, "c": round(float(c), 2), "v": int(v)})
+    return meta, pts
 
 
-def history(ticker, rng_name):
-    ticker = ticker.upper()
-    series = daily(ticker)
-    n = len(series)
-    if rng_name == "1D":
-        return _intraday(ticker, n - 1, 78, 5)
-    if rng_name == "1W":
-        pts = []
-        for k in range(5, 0, -1):
-            pts += _intraday(ticker, n - k, 13, 30)
-        return pts
-    counts = {"1M": 22, "3M": 66, "6M": 132, "1Y": 252, "5Y": 1260}
-    if rng_name == "MAX":
-        return series
-    return series[-counts.get(rng_name, 252):]
+def _get(symbol, rng_name):
+    # cached fetch, returns (meta, points, fetched_at, is_stale)
+    rng, interval, ttl = RANGE_MAP[rng_name]
+    key = (symbol, rng_name)
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1], hit[2], hit[0], False
+    with _lock_for(key):
+        # someone else may have filled it while we waited
+        hit = _cache.get(key)
+        if hit and time.time() - hit[0] < ttl:
+            return hit[1], hit[2], hit[0], False
+        try:
+            meta, pts = _parse(fetch_chart(symbol, rng, interval))
+            if not pts:
+                raise MarketUnavailable("No price points for %s." % symbol)
+            _cache[key] = (time.time(), meta, pts)
+            return meta, pts, _cache[key][0], False
+        except MarketUnavailable:
+            if hit and time.time() - hit[0] < STALE_OK:
+                return hit[1], hit[2], hit[0], True
+            raise
+
+
+def _iso(ts):
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
+
+
+def _market_open(meta):
+    reg = ((meta.get("currentTradingPeriod") or {}).get("regular")) or {}
+    try:
+        return reg["start"] <= time.time() <= reg["end"]
+    except KeyError:
+        return False
+
+
+def _quote_for(symbol, label):
+    meta, pts, fetched, stale = _get(symbol, "1D")
+    price = meta.get("regularMarketPrice")
+    if price is None:
+        price = pts[-1]["c"]
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose") or pts[0]["c"]
+    change = round(price - prev, 2)
+    pct = round(change / prev * 100, 2) if prev else 0
+    when = meta.get("regularMarketTime") or (pts[-1]["t"] // 1000)
+    return {
+        "ticker": label,
+        "price": round(float(price), 2),
+        "previous_close": round(float(prev), 2),
+        "change": change,
+        "change_pct": pct,
+        "as_of": _iso(when),
+        "market_open": _market_open(meta),
+        "stale": stale,
+        "source": SOURCE,
+        "note": "Live data from Yahoo Finance. Can be up to about 15 minutes behind.",
+    }
 
 
 def quote(ticker):
     ticker = ticker.upper()
-    s = daily(ticker)
-    last, prev = s[-1], s[-2]
-    change = round(last["c"] - prev["c"], 2)
-    pct = round(change / prev["c"] * 100, 2) if prev["c"] else 0
-    d = dt.datetime.utcfromtimestamp(last["t"] / 1000).date().isoformat()
+    return _quote_for(ticker, ticker)
+
+
+def prefetch(tickers, sparks=False):
+    # warm the cache for many stocks at once so pages do not wait one by one
+    todo = [t.upper() for t in tickers if is_company(t)]
+    list(_pool.map(lambda t: _safe(quote, t), todo))
+    if sparks:
+        list(_pool.map(lambda t: _safe(spark, t), todo))
+
+
+def _safe(fn, *a):
+    try:
+        return fn(*a)
+    except MarketUnavailable:
+        return None
+
+
+def history(ticker, rng_name):
+    ticker = ticker.upper()
+    meta, pts, fetched, stale = _get(ticker, rng_name)
     return {
-        "ticker": ticker,
-        "price": last["c"],
-        "previous_close": prev["c"],
-        "change": change,
-        "change_pct": pct,
-        "as_of": d,
-        "source": "demo",
-        "note": "Simulated demo data, not a real market price.",
+        "points": pts,
+        "stale": stale,
+        "fetched_at": _iso(fetched),
+        "timezone": meta.get("exchangeTimezoneName") or "America/New_York",
     }
 
 
 def spark(ticker, n=30):
-    return [p["c"] for p in daily(ticker)[-n:]]
+    try:
+        meta, pts, fetched, stale = _get(ticker.upper(), "1M")
+    except MarketUnavailable:
+        return []
+    return [p["c"] for p in pts[-n:]]
 
 
 def company(ticker):
-    info = BY_TICKER.get(ticker.upper())
-    if not info or info.get("index"):
-        return None
-    return {k: v for k, v in info.items() if k not in ("base", "vol")}
+    info = BY_TICKER.get((ticker or "").upper())
+    return dict(info) if info else None
 
 
 def with_quote(ticker):
     c = company(ticker)
     if not c:
         return None
-    c = dict(c)
     c["quote"] = quote(ticker)
     return c
 
 
 def search(q):
     q = (q or "").strip().lower()
-    out = []
+    hits = []
     for c in COMPANIES:
         ticker, name = c[0], c[1]
         if not q or q in ticker.lower() or q in name.lower() or q in c[3].lower() or q in c[4].lower():
-            out.append(with_quote(ticker))
+            hits.append(ticker)
+    prefetch(hits)
+    out = []
+    for t in hits:
+        try:
+            out.append(with_quote(t))
+        except MarketUnavailable:
+            pass
     # exact ticker match first, then ticker prefix
     out.sort(key=lambda x: (x["ticker"].lower() != q, not x["ticker"].lower().startswith(q), x["name"]))
     return out
@@ -225,21 +308,28 @@ def search(q):
 
 def index_quotes():
     out = []
-    for t, name, _, _ in INDICES:
-        qd = quote(t)
+    for label, name, symbol in INDICES:
+        try:
+            qd = _quote_for(symbol, label)
+        except MarketUnavailable:
+            continue
         qd["name"] = name
         out.append(qd)
     return out
 
 
 def trending(n=5):
-    qs = [quote(c[0]) for c in COMPANIES]
+    prefetch([c[0] for c in COMPANIES])
+    qs = []
+    for c in COMPANIES:
+        try:
+            qs.append(quote(c[0]))
+        except MarketUnavailable:
+            pass
     qs.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
-    out = []
-    for qd in qs[:n]:
-        c = company(qd["ticker"])
-        out.append({"ticker": qd["ticker"], "name": c["name"], "quote": qd})
-    return out
+    top = qs[:n]
+    prefetch([q["ticker"] for q in top], sparks=True)
+    return [{"ticker": q["ticker"], "name": company(q["ticker"])["name"], "quote": q, "spark": spark(q["ticker"])} for q in top]
 
 
 def price_at(ticker):

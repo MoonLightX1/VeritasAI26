@@ -35,7 +35,7 @@ function buildTools() {
       return '<button class="chip' + (t[0] === 'none' ? ' on' : '') + '" data-tool="' + t[0] + '">' + t[1] + '</button>';
     }).join('') +
     '<span class="sep"></span>' +
-    '<input type="color" id="colorPick" value="#2563eb" title="Drawing color">' +
+    '<input type="color" id="colorPick" value="#5b6cd6" title="Drawing color">' +
     '<span class="sep"></span>' +
     '<button class="chip" id="undoBtn">Undo</button>' +
     '<button class="chip" id="redoBtn">Redo</button>' +
@@ -95,10 +95,29 @@ async function loadHistory() {
   try {
     const h = await api('/api/stocks/' + TICKER + '/history?range=' + range);
     if (mine !== loadToken) return; // they clicked another range already
-    chart.setData(h.points, h.intraday);
+    chart.setData(h.points, h.intraday, h.timezone);
     msg.classList.add('hidden');
   } catch (e) {
-    msg.textContent = e.message;
+    // show the error and a button so they can try again
+    msg.innerHTML = '<div style="text-align:center;padding:0 16px"><div>' + esc(e.message) +
+      '</div><button class="btn light sm" id="retryChart" style="margin-top:10px">Try again</button></div>';
+    document.getElementById('retryChart').onclick = loadHistory;
+  }
+}
+
+// keeps the price and chart live while the page is open
+async function liveRefresh() {
+  if (document.hidden || !chart || !stock) return;
+  try {
+    const s = await api('/api/stocks/' + TICKER);
+    stock.quote = s.quote;
+    renderHead();
+    const mine = loadToken;
+    const h = await api('/api/stocks/' + TICKER + '/history?range=' + range);
+    if (mine !== loadToken || h.range !== range) return;
+    chart.refreshData(h.points);
+  } catch (e) {
+    // quiet, it will try again in a bit
   }
 }
 
@@ -131,7 +150,7 @@ function renderHead() {
     '<div class="muted small">' + esc(stock.exchange) + ' &middot; ' + esc(stock.sector) + '</div>' +
     '<div><span class="price">' + money(q.price) + '</span> <span class="' + cls(q.change) + '"><b>' +
     signedMoney(q.change) + ' (' + pct(q.change_pct) + ')</b></span></div>' +
-    '<div class="muted small">Simulated demo data, latest close ' + q.as_of + '</div></div>';
+    '<div class="muted small">' + liveLabel(q) + '</div></div>';
 
   document.getElementById('desc').textContent = stock.description;
   const facts = [
@@ -347,6 +366,7 @@ async function start() {
   chart.setTool('none');
   await loadShapes(false);
   loadHistory();
+  setInterval(liveRefresh, 15000);
 }
 
 start();

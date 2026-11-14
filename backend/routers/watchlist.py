@@ -16,12 +16,17 @@ def watch_items(db, uid):
     rows = db.execute(
         "SELECT ticker FROM watchlist WHERE user_id = ? ORDER BY created_at DESC", (uid,)
     ).fetchall()
+    market.prefetch([r["ticker"] for r in rows], sparks=True)
     out = []
     for r in rows:
-        item = market.with_quote(r["ticker"])
-        if item:
-            item["spark"] = market.spark(r["ticker"])
-            out.append(item)
+        try:
+            item = market.with_quote(r["ticker"])
+            if item:
+                item["spark"] = market.spark(r["ticker"])
+                out.append(item)
+        except market.MarketUnavailable:
+            # skip this one, the rest of the list still shows
+            pass
     return out
 
 

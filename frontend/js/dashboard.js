@@ -9,7 +9,7 @@ function stockRow(item) {
   const q = item.quote;
   return '<div class="row"><div class="l">' + logoHtml(item.ticker) +
     '<div><a href="stock.html?t=' + item.ticker + '"><b>' + esc(item.name) + '</b></a><div class="muted small">' + item.ticker + '</div></div></div>' +
-    (item.spark ? '<canvas class="spark" data-t="' + item.ticker + '" style="width:80px;height:34px"></canvas>' : '') +
+    (item.spark && item.spark.length ? '<canvas class="spark" data-t="' + item.ticker + '" style="width:80px;height:34px"></canvas>' : '') +
     '<div class="right"><div><b>' + money(q.price) + '</b></div><div class="small ' + cls(q.change_pct) + '">' + pct(q.change_pct) + '</div></div></div>';
 }
 
@@ -17,12 +17,18 @@ async function start() {
   const me = await initShell('dashboard.html');
   document.getElementById('welcome').textContent = 'Welcome, ' + me.display_name;
   document.getElementById('banner').innerHTML = demoBanner();
+  await load(true);
+  // refresh the prices every 30 seconds while the page is open
+  setInterval(function () { if (!document.hidden) load(false); }, 30000);
+}
 
+async function load(first) {
   let d;
   try {
     d = await api('/api/dashboard');
   } catch (e) {
-    toast(e.message, true);
+    // only nag on the first load, later ones just try again next time
+    if (first) toast(e.message, true);
     return;
   }
 
@@ -35,11 +41,11 @@ async function start() {
   setWallet(w.cash);
 
   document.getElementById('indices').innerHTML = d.indices.map(function (i) {
-    const arrow = i.change_pct >= 0 ? 'Up' : 'Down';
+    const arrow = i.change_pct >= 0 ? 'up' : 'down';
     return '<div class="card stat"><div class="label">' + esc(i.name) + '</div><div class="value">' +
       Number(i.price).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div>' +
       '<div class="sub ' + cls(i.change_pct) + '">' + arrow + ' ' + pct(i.change_pct) + '</div>' +
-      '<div class="muted small">Demo data as of ' + i.as_of + '</div></div>';
+      '<div class="muted small">' + liveLabel(i) + '</div></div>';
   }).join('');
 
   const watch = document.getElementById('watch');
@@ -74,7 +80,7 @@ async function start() {
 
   // sparklines need the canvases to be on the page first
   const sparks = {};
-  d.watchlist.forEach(function (i) { sparks[i.ticker] = i.spark; });
+  d.watchlist.concat(d.trending).forEach(function (i) { sparks[i.ticker] = i.spark; });
   document.querySelectorAll('canvas.spark').forEach(function (c) {
     if (sparks[c.dataset.t]) drawSpark(c, sparks[c.dataset.t]);
   });

@@ -90,7 +90,7 @@ function drawSpark(canvas, values) {
   const up = values[values.length - 1] >= values[0];
   const css = getComputedStyle(document.documentElement);
   ctx.strokeStyle = css.getPropertyValue(up ? '--up' : '--down').trim() || (up ? '#1f9d55' : '#d93f3f');
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
   values.forEach(function (v, i) {
     const x = (i / (values.length - 1)) * (w - 2) + 1;
@@ -119,7 +119,7 @@ const NAV = [
   ['settings.html', 'Settings']
 ];
 
-// builds the sidebar + top bar around the page content
+// builds the top bar around the page content
 // every logged in page calls this first
 async function initShell(active) {
   const me = await api('/api/auth/me');
@@ -134,36 +134,25 @@ async function initShell(active) {
   }).join('');
 
   shell.innerHTML =
-    '<aside class="sidebar" id="sidebar">' +
+    '<header class="topbar">' +
       '<a class="brand" href="dashboard.html">Money<span>Sprout</span></a>' +
       '<nav class="nav">' + links + '</nav>' +
-      '<div class="wallet">' +
-        '<div class="dim">Virtual wallet</div>' +
-        '<div class="amt" id="walletAmt">' + money(me.wallet.cash) + '</div>' +
-        '<div class="dim">Pretend money only</div>' +
-        '<a class="btn light sm block" href="portfolio.html">View portfolio</a>' +
-      '</div>' +
-    '</aside>' +
-    '<div class="main">' +
-      '<div class="topbar">' +
-        '<button class="btn light sm menu-btn" id="menuBtn">Menu</button>' +
-        '<div class="search"><input type="text" id="globalSearch" placeholder="Search a company or ticker" autocomplete="off">' +
-        '<div class="suggest hidden" id="globalSuggest"></div></div>' +
-        '<div class="who"><span class="who-name">' + esc(me.display_name) + '</span>' +
-        (me.is_demo ? '<span class="pill warn">DEMO</span>' : '') +
+      '<div class="search"><input type="text" id="globalSearch" placeholder="Search a company" autocomplete="off">' +
+      '<div class="suggest hidden" id="globalSuggest"></div></div>' +
+      '<div class="who">' +
+        '<span class="who-name muted">' + esc(me.display_name) + '</span>' +
+        '<a class="cash" href="portfolio.html" title="Pretend money">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
+        (me.is_demo ? '<span class="pill warn">demo</span>' : '') +
         themeButton() +
-        '<button class="btn light sm" id="logoutBtn">Log out</button></div>' +
+        '<button class="btn light sm" id="logoutBtn">Log out</button>' +
       '</div>' +
-      '<div class="content" id="contentSlot"></div>' +
-    '</div>';
+    '</header>' +
+    '<div class="content" id="contentSlot"></div>';
 
   document.body.insertBefore(shell, content);
   document.getElementById('contentSlot').appendChild(content);
   content.classList.remove('hidden');
 
-  document.getElementById('menuBtn').onclick = function () {
-    document.getElementById('sidebar').classList.toggle('open');
-  };
   document.getElementById('logoutBtn').onclick = async function () {
     try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
     location.href = 'index.html';
@@ -216,7 +205,15 @@ function setupSearch() {
   });
 }
 
+// small line that says how fresh a price is
+function liveLabel(q) {
+  const t = new Date(q.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  let txt = (q.market_open ? 'Market open' : 'Market closed') + ', last update ' + t;
+  if (q.stale) txt += ' (provider not responding, showing older data)';
+  return txt;
+}
+
 function demoBanner() {
-  return '<div class="banner">All prices on MoneySprout right now are <b>simulated demo data</b>. ' +
-    'They are not real market prices, and all trading uses pretend money.</div>';
+  return '<div class="banner">Prices come from <b>Yahoo Finance</b> and can be up to about 15 minutes behind. ' +
+    'Trading on MoneySprout uses <b>pretend money only</b>, nothing here is real trading or financial advice.</div>';
 }

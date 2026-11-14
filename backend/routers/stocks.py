@@ -48,10 +48,14 @@ def get_history(ticker: str, range: str = "1Y", user=Depends(current_user)):
     t = must_exist(ticker)
     if range not in RANGES:
         raise HTTPException(400, "Bad range.")
+    h = market.history(t, range)
     return {
         "ticker": t,
         "range": range,
         "intraday": range in ("1D", "1W"),
-        "source": "demo",
-        "points": market.history(t, range),
+        "source": market.SOURCE,
+        "timezone": h["timezone"],
+        "stale": h["stale"],
+        "fetched_at": h["fetched_at"],
+        "points": h["points"],
     }

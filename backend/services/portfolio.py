@@ -29,6 +29,7 @@ def get_cash_cents(db, user_id):
 
 def holdings_detail(db, user_id):
     rows = db.execute("SELECT * FROM holdings WHERE user_id = ? ORDER BY ticker", (user_id,)).fetchall()
+    market.prefetch([r["ticker"] for r in rows])
     out = []
     for r in rows:
         q = market.quote(r["ticker"])

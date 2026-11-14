@@ -87,7 +87,9 @@ def config():
 
 
 @router.get("/username-check")
-def username_check(username: str, db=Depends(get_db)):
+def username_check(username: str, request: Request, db=Depends(get_db)):
+    if security.too_many("uname:" + client_ip(request), limit=120, window=300):
+        raise HTTPException(429, "Slow down a bit.")
     if not security.USERNAME_RE.match(username):
         return {"available": False, "reason": "Use 3 to 20 letters, numbers or underscores."}
     row = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
@@ -188,11 +190,18 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
 def login(body: LoginBody, request: Request, response: Response, db=Depends(get_db)):
     if security.too_many("login:" + client_ip(request)):
         raise HTTPException(429, "Too many tries, wait a few minutes.")
-    ident = body.identifier.strip()
+    ident = body.identifier.strip()[:120]
+    # also limit per account so one account cannot be guessed from many ips
+    if security.too_many("login-user:" + ident.lower(), limit=8, window=600):
+        raise HTTPException(429, "Too many tries, wait a few minutes.")
     row = db.execute(
         "SELECT * FROM users WHERE username = ? OR email = ?", (ident, ident)
     ).fetchone()
-    if not row or not security.check_password(body.password, row["password_hash"]):
+    if not row:
+        # still do the slow hash so timing does not give away which usernames exist
+        security.check_password(body.password[:200], security.DUMMY_HASH)
+        raise HTTPException(401, "Wrong username or password.")
+    if not security.check_password(body.password[:200], row["password_hash"]):
         raise HTTPException(401, "Wrong username or password.")
     token, exp = security.new_session(db, row["id"], body.remember)
     set_cookie(response, token, exp, body.remember)
@@ -224,7 +233,9 @@ def display_name(body: NameBody, user=Depends(current_user), db=Depends(get_db))
 
 
 @router.put("/password")
-def change_password(body: PasswordBody, user=Depends(current_user), db=Depends(get_db)):
+def change_password(body: PasswordBody, request: Request, user=Depends(current_user), db=Depends(get_db)):
+    if security.too_many("pw:" + str(user["id"]), limit=8, window=600):
+        raise HTTPException(429, "Too many tries, wait a few minutes.")
     if not security.check_password(body.current_password, user["password_hash"]):
         raise HTTPException(400, "Current password is wrong.")
     problem = security.password_problem(body.new_password)
@@ -233,12 +244,16 @@ def change_password(body: PasswordBody, user=Depends(current_user), db=Depends(g
     db.execute(
         "UPDATE users SET password_hash = ? WHERE id = ?", (security.hash_password(body.new_password), user["id"])
     )
+    # log out every other device, keep this one
+    db.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], request.cookies.get(COOKIE_NAME, "")))
     db.commit()
     return {"ok": True}
 
 
 @router.post("/delete-account")
 def delete_account(body: DeleteBody, response: Response, user=Depends(current_user), db=Depends(get_db)):
+    if security.too_many("del:" + str(user["id"]), limit=5, window=600):
+        raise HTTPException(429, "Too many tries, wait a few minutes.")
     if not security.check_password(body.password, user["password_hash"]):
         raise HTTPException(400, "Password is wrong.")
     db.execute("DELETE FROM users WHERE id = ?", (user["id"],))

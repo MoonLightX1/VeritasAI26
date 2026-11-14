@@ -38,8 +38,10 @@ def list_notes(q: str = "", ticker: str = "", user=Depends(current_user), db=Dep
         sql += " AND ticker = ?"
         args.append(ticker.upper())
     if q:
-        sql += " AND (title LIKE ? OR content LIKE ?)"
-        args += ["%" + q + "%", "%" + q + "%"]
+        # escape % and _ so they are searched as normal characters
+        like = "%" + q[:100].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        sql += " AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')"
+        args += [like, like]
     sql += " ORDER BY updated_at DESC"
     return {"notes": [as_dict(r) for r in db.execute(sql, args).fetchall()]}
 
