@@ -30,15 +30,15 @@ win wins won approval approved launch launches partnership expands expansion bre
 tops topped higher best demand soaring climbs climb positive success""".split())
 
 NEG = set("""miss misses fall falls fell drop drops dropped plunge plunges plunged slump slumps tumble tumbles sink sinks
-sank down downgrade downgrades downgraded lawsuit sues sued probe investigation fine fined recall recalls weak weaker loss
+sank down downgrade downgrades downgraded lawsuit sues sued probe investigation fined recall recalls weak weaker loss
 losses layoffs layoff cut cuts bearish underperform decline declines declined warning warns warn fraud ban banned
 delay delays delayed lower worst fear fears risk risks concern concerns crash crashes selloff negative fails failed
-shortage antitrust penalty scandal affair allegations alleged misconduct harassment resigns resign resignation ousted
+shortage antitrust penalty scandal allegations alleged misconduct harassment resigns resign resignation ousted
 fired indicted indictment charged subpoena subpoenaed settlement controversy backlash tariffs sanctions breach hack
 hacked outage blasted slammed troubled""".split())
 
 # things that can move a whole stock on their own: leadership scandals, legal trouble, fraud
-SEVERE = set("""scandal affair allegations alleged misconduct harassment resigns resignation ousted indicted indictment
+SEVERE = set("""scandal allegations alleged misconduct harassment resigns resignation ousted indicted indictment
 charged subpoena subpoenaed fraud probe investigation lawsuit sues sued antitrust recall hack hacked breach
 sanctions ban banned bankruptcy""".split())
 
@@ -48,8 +48,44 @@ _engine = {"name": None, "fn": None}
 _engine_lock = threading.Lock()
 
 
+# Context rules. A headline can contain a scary word without being bad news about the stock,
+# e.g. a movie trailer for "The Affair". So we ignore quoted titles, ignore entertainment
+# headlines that are not about the business, and only treat a personal scandal as serious
+# when an executive or owner is actually involved.
+_QUOTED = re.compile(r"[\u201c\"][^\u201d\"]{2,}[\u201d\"]|\u2018[^\u2019]{2,}\u2019|(?<![\w])'[^']{2,}'(?![\w])")
+ENTERTAINMENT = set("""trailer teaser movie movies film films episode episodes premiere premieres sequel prequel actor actress
+cast docuseries soundtrack streaming-release miniseries""".split())
+BUSINESS = set("""stock stocks shares share earnings revenue profit profits investors investor analyst analysts lawsuit sues sued
+antitrust investigation regulators ftc sec doj ceo cfo shareholders valuation guidance forecast acquisition acquires
+merger layoffs recall tariffs""".split())
+ROLES = re.compile(r"\b(ceo|cfo|cto|coo|executive|exec|founder|co-founder|chairman|chair|president|chief|boss|director|billionaire|owner)\b", re.I)
+PERSONAL = re.compile(r"\b(affair|affairs|extramarital|misconduct|harassment|scandal|allegations?|accused)\b", re.I)
+
+
+def strip_titles(text):
+    return _QUOTED.sub(" ", text)
+
+
+def personal_scandal(text):
+    clean = strip_titles(text)
+    return bool(ROLES.search(clean) and PERSONAL.search(clean))
+
+
+def judge(title, score):
+    """(score, relevant, note) after the context rules."""
+    words = set(re.findall(r"[a-z\-]+", strip_titles(title).lower()))
+    if words & ENTERTAINMENT and not (words & BUSINESS):
+        return 0.0, False, "About a show, film or trailer, not the company's business"
+    if personal_scandal(title):
+        return min(score, -0.85), True, "Executive scandal"
+    return score, True, ""
+
+
 def _lexicon_score(text):
-    words = re.findall(r"[a-z']+", text.lower())
+    clean = strip_titles(text)
+    if personal_scandal(text):
+        return -0.85
+    words = re.findall(r"[a-z']+", clean.lower())
     total = 0.0
     hits = 0
     for i, w in enumerate(words):
@@ -68,8 +104,8 @@ def _lexicon_score(text):
 
 
 def is_severe(text):
-    words = set(re.findall(r"[a-z']+", text.lower()))
-    return bool(words & SEVERE)
+    words = set(re.findall(r"[a-z']+", strip_titles(text).lower()))
+    return bool(words & SEVERE) or personal_scandal(text)
 
 
 # Finding out what is in the model folder, and saying so out loud when it does not load.
@@ -411,39 +447,70 @@ def _vol(points):
 
 
 def forecast(points, sentiment, steps, end_log=None):
-    """Future points after the last real one. Normally built from the trend + news mood.
-    If end_log is given (the AI's target as a log return over all the steps), the line is
-    bent to end there instead, and the shaded range still comes from how jumpy the stock is."""
+    """Future points after the last real one.
+
+    The shape is deliberately not a straight line:
+      - the move happens mostly early and then levels off (news and trends fade, nothing climbs forever)
+      - an overextended price is pulled back a bit toward its recent average
+      - small realistic ups and downs, drawn from the stock's own past moves, that still land on the end target
+    If end_log is given (the AI's target, as a log return over all the steps) the line ends there instead.
+    The shaded range comes from how jumpy the stock is."""
+    import random
     v = _vol(points)
     if not v:
         return []
     mu, sigma = v
     closes = [p["c"] for p in points]
     n = len(closes)
+    start = closes[-1]
 
-    # how much the news is allowed to take over: 0 when it is neutral, 1 when it is clearly one sided
-    a = max(0.0, min(1.0, (abs(sentiment) - 0.10) / 0.50))
-    news_drift = sentiment * 0.45 * sigma
-    drift = (1.0 - a) * mu + a * news_drift
+    # fade: roughly 85% of the total move is done by the 2/3 point
+    tau = max(1.0, steps / 2.5)
+    weights = [math.exp(-k / tau) for k in range(1, steps + 1)]
+    wtot = sum(weights)
+    cum, run = [], 0.0
+    for w in weights:
+        run += w
+        cum.append(run / wtot)  # 0..1, bends over
+
+    if end_log is None:
+        a = max(0.0, min(1.0, (abs(sentiment) - 0.10) / 0.50))
+        news_drift = sentiment * 0.45 * sigma
+        drift = (1.0 - a) * mu + a * news_drift
+        total = drift * wtot  # sum of the fading per-step drift
+        # pull back toward the recent average if the price ran far from it
+        ma = sum(closes[-50:]) / len(closes[-50:])
+        dev = math.log(start / ma) if ma > 0 else 0.0
+        dev = max(-3 * sigma * math.sqrt(steps), min(3 * sigma * math.sqrt(steps), dev))
+        total -= 0.25 * dev
+    else:
+        total = end_log
+
+    # natural wiggle from the stock's own past moves, same every time for the same data
+    look = min(120, n - 1)
+    hist = [math.log(closes[i] / closes[i - 1]) for i in range(n - look, n) if closes[i - 1] > 0 and closes[i] > 0]
+    hm = sum(hist) / len(hist)
+    hist = [r - hm for r in hist]
+    rng = random.Random(int(points[-1]["t"]) ^ (n * 7919))
+    wig, run = [], 0.0
+    for _ in range(steps):
+        run += rng.choice(hist) * 0.6
+        wig.append(run)
+    # bridge it so the wiggle starts and ends at zero, the line still lands on the target
+    bridge = [w - (k + 1) / steps * wig[-1] for k, w in enumerate(wig)]
 
     step_ms = _median([points[i]["t"] - points[i - 1]["t"] for i in range(max(1, n - 20), n)])
     t = points[-1]["t"]
-    start = closes[-1]
-    price = start
     out = []
     for k in range(1, steps + 1):
-        if end_log is None:
-            # momentum fades a little the further out we go
-            price *= math.exp(drift * (0.985 ** k))
-        else:
-            price = start * math.exp(end_log * k / steps)
+        price = start * math.exp(total * cum[k - 1] + bridge[k - 1])
         t = _next_time(t, step_ms)
         spread = 1.28 * sigma * math.sqrt(k)  # roughly an 80% range
         out.append({
             "t": int(t),
             "c": round(price, 2),
-            "lo": round(price * math.exp(-spread), 2),
-            "hi": round(price * math.exp(spread), 2),
+            "lo": round(start * math.exp(math.log(price / start) - spread), 2),
+            "hi": round(start * math.exp(math.log(price / start) + spread), 2),
         })
     return out
 
@@ -453,6 +520,75 @@ def _median(xs):
     if not xs:
         return 86400000
     return xs[len(xs) // 2]
+
+
+def _build(items, scores, rel, notes):
+    rows = [{"title": it["title"], "publisher": it["publisher"], "link": it["link"], "time": it["time"],
+             "score": round(sc, 2), "relevant": r, "note": nt,
+             "severe": r and sc < 0 and is_severe(it["title"])}
+            for it, sc, r, nt in zip(items, scores, rel, notes)]
+    pos = [r for r in rows if r["score"] >= 0.15]
+    neg = [r for r in rows if r["score"] <= -0.15]
+    mid = len(rows) - len(pos) - len(neg)
+    severe = [r for r in neg if r["severe"]]
+    s = combine(items, [r["score"] for r in rows])
+    return rows, pos, neg, mid, severe, s, label_for(s)
+
+
+def _ai_verify(gen, name, items, scores, rel, notes):
+    """The AI double-checks the headlines that matter most. Changes scores in place.
+    Returns a list of what it changed, or None if its answer could not be read."""
+    now = time.time()
+
+    def weight(i):
+        age = max(0.0, (now - items[i]["time"]) / 86400.0)
+        return (abs(scores[i]) + (0.6 if is_severe(items[i]["title"]) else 0.0) + 0.1) * math.exp(-age / 6.0)
+
+    idx = sorted(range(len(items)), key=weight, reverse=True)[:16]
+    lines = "\n".join("%d. %s" % (n + 1, items[i]["title"]) for n, i in enumerate(idx))
+    prompt = (
+        "You check news headlines about %s for a stock app. For each headline decide what it means for the company's stock:\n"
+        '- "good": real good news for the business (earnings, growth, deals, upgrades)\n'
+        '- "bad": real bad news for the business (lawsuits, investigations, executive scandals, weak results, regulators)\n'
+        '- "neutral": routine or mixed\n'
+        '- "irrelevant": not about the company\'s business, e.g. a movie, show or trailer title, a review, or an unrelated person\n'
+        "Titles in quotes are names of shows, films or products, they are not events.\n\n%s\n\n"
+        'Reply with ONLY a JSON object mapping each number to a verdict, like {"1": "bad", "2": "irrelevant"}.' % (name, lines)
+    )
+    with _gen_lock:
+        raw = gen(prompt)
+    verdicts = {}
+    m = re.search(r"\{.*\}", raw, re.S)
+    if m:
+        try:
+            for k, v in json.loads(m.group(0)).items():
+                verdicts[int(k)] = str(v).lower().strip()
+        except (ValueError, AttributeError):
+            verdicts = {}
+    if not verdicts:
+        for k, v in re.findall(r"(\d+)\W{1,4}(good|bad|neutral|irrelevant)", raw.lower()):
+            verdicts[int(k)] = v
+    if not verdicts:
+        return None
+
+    changes = []
+    for n, i in enumerate(idx):
+        v = verdicts.get(n + 1)
+        if v not in ("good", "bad", "neutral", "irrelevant"):
+            continue
+        old_s, old_r = scores[i], rel[i]
+        if v == "good":
+            scores[i], rel[i] = (old_s if old_s >= 0.5 else 0.5), True
+        elif v == "bad":
+            scores[i], rel[i] = (old_s if old_s <= -0.5 else -0.5), True
+        elif v == "neutral":
+            scores[i], rel[i] = 0.0, True
+        else:
+            scores[i], rel[i] = 0.0, False
+            notes[i] = "AI: not about the company's business"
+        if (old_s >= 0.15) != (scores[i] >= 0.15) or (old_s <= -0.15) != (scores[i] <= -0.15) or old_r != rel[i]:
+            changes.append('"%s" -> %s' % (items[i]["title"][:55], v))
+    return changes
 
 
 HORIZON_TEXT = {"1D": "the next 45 minutes", "1W": "the next few trading hours", "1M": "the next 7 trading days",
@@ -502,7 +638,7 @@ def _parse_ai(text):
 
 
 def _ai_prompt(name, ticker, range_name, rows, counts, sentiment, recent_pct, sigma, stat_pct):
-    top = sorted(rows, key=lambda n: abs(n["score"]) + (0.5 if n["severe"] else 0), reverse=True)[:15]
+    top = sorted([r for r in rows if r.get("relevant", True)], key=lambda n: abs(n["score"]) + (0.5 if n["severe"] else 0), reverse=True)[:15]
     lines = "\n".join("- %s%s (tone %+.2f)" % ("[SERIOUS] " if n["severe"] else "", n["title"], n["score"]) for n in top) or "- (no recent news)"
     return (
         "You are a careful stock analyst helper for beginners. Using ONLY the information below, predict where the price of %s (%s) "
@@ -553,23 +689,50 @@ def predict(ticker, range_name, progress=None, ai=False):
 
     cb("score", "running", "Reading every headline and scoring it from bad to good (first time loads the scorer)...")
     engine, scores = score_headlines(items)
-    s = combine(items, scores)
-    lab = label_for(s)
+    # context check: quoted titles, trailers and other non-business headlines do not count
+    rel, notes = [True] * len(items), [""] * len(items)
+    for i, it in enumerate(items):
+        scores[i], rel[i], notes[i] = judge(it["title"], scores[i])
+    off = sum(1 for r in rel if not r)
+    cb("score", "done", "Scored %d headlines with %s. %d ignored as not about the business (shows, films, trailers)." % (len(items), engine, off))
 
-    rows = [{"title": it["title"], "publisher": it["publisher"], "link": it["link"],
-             "time": it["time"], "score": round(sc, 2), "severe": sc < 0 and is_severe(it["title"])}
-            for it, sc in zip(items, scores)]
-    pos = [r for r in rows if r["score"] >= 0.15]
-    neg = [r for r in rows if r["score"] <= -0.15]
-    mid = len(rows) - len(pos) - len(neg)
-    severe = [r for r in neg if r["severe"]]
-    cb("score", "done", "%d good, %d bad, %d neutral. Overall mood %+.2f (%s), scored by %s" % (len(pos), len(neg), mid, s, lab, engine))
+    gen = None
+    if ai:
+        cb("model", "running", "Loading the AI model. The first time this downloads the base model and can take several minutes...")
+        gen = _get_generator()
+        if gen:
+            cb("model", "done", "AI model ready")
+        else:
+            cb("model", "warn", "Not available: " + (model_note() or "no text-writing AI model found"))
+
+    # second opinion: the AI re-reads the headlines that matter most and says good / bad / neutral / not relevant
+    if gen and items:
+        cb("verify", "running", "The AI is double-checking the most important headlines...")
+        try:
+            changes = _ai_verify(gen, name, items, scores, rel, notes)
+            if changes is None:
+                cb("verify", "warn", "The AI answer could not be read, so the rule-based check was kept.")
+            else:
+                msg = "AI re-read the key headlines and changed %d verdict%s" % (len(changes), "" if len(changes) == 1 else "s")
+                msg += (": " + "; ".join(changes[:2])[:160]) if changes else ". Everything checked out."
+                cb("verify", "done", msg)
+        except Exception as e:
+            cb("verify", "warn", "The AI check failed (%s), so the rule-based check was kept." % e)
+    elif ai:
+        cb("verify", "skipped", "No AI model, so only the rule-based context check was used")
+    else:
+        cb("verify", "skipped", "Not used for this request")
+
+    rows, pos, neg, mid, severe, s, lab = _build(items, scores, rel, notes)
 
     cb("flags", "running", "Checking for serious events like lawsuits, investigations or executive scandals...")
     if severe:
         cb("flags", "warn", "%d serious headline%s, for example: \"%s\"" % (len(severe), "" if len(severe) == 1 else "s", severe[0]["title"][:90]))
     else:
         cb("flags", "done", "None found")
+    ignored = sum(1 for r in rows if not r["relevant"])
+    cb("score", "done", "%d good, %d bad, %d neutral (%d ignored as not about the business). Overall mood %+.2f (%s), scored by %s"
+       % (len(pos), len(neg), mid, ignored, s, lab, engine))
 
     # best reasons first: strongest and newest
     def strength(r):
@@ -599,21 +762,15 @@ def predict(ticker, range_name, progress=None, ai=False):
     stat = forecast(pts, s, steps)
     stat_pct = (stat[-1]["c"] / last - 1) * 100
 
-    # ---- the AI's own prediction ----
     ai_info = {"used": False, "outlook": None, "change_pct": None, "confidence": None,
                "stat_change_pct": round(stat_pct, 2), "note": ""}
     ai_summary = None
     future = stat
     if ai:
-        cb("model", "running", "Loading the AI model. The first time this downloads the base model and can take several minutes...")
-        gen = _get_generator()
         if not gen:
-            note = model_note() or "No text-writing AI model is available."
-            ai_info["note"] = note
-            cb("model", "warn", "Not available: " + note)
+            ai_info["note"] = model_note() or "No text-writing AI model is available."
             cb("ai", "skipped", "Using the trend + news forecast instead")
         else:
-            cb("model", "done", "AI model ready")
             cb("ai", "running", "The AI is reading %d headlines and thinking about where the price is going..." % min(15, len(rows)))
             t0 = time.time()
             try:
@@ -698,8 +855,9 @@ STEPS = [
     ("trend", "Measuring the price trend"),
     ("news", "Searching the news"),
     ("score", "Scoring every headline"),
-    ("flags", "Checking for serious events"),
     ("model", "Loading the AI model"),
+    ("verify", "AI double-checks the key headlines"),
+    ("flags", "Checking for serious events"),
     ("ai", "AI makes its prediction and summary"),
     ("forecast", "Drawing the forecast"),
 ]

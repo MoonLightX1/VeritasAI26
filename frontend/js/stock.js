@@ -67,6 +67,59 @@ function showSide(on) {
   chart.resize();
 }
 
+// turns what the AI said into plain text for a note
+function predictionNoteText(p) {
+  const s = p.sentiment, ai = p.ai || {}, sum = p.summary || {};
+  const mood = s.label === 'neutral' ? 'stable' : s.label;
+  const L = [];
+  L.push(stock.name + ' (' + TICKER + ') - ' + range + ' view, ' + new Date().toLocaleString());
+  L.push('');
+  L.push('Outlook: ' + mood + ' (news mood ' + (s.score > 0 ? '+' : '') + s.score.toFixed(2) + ')');
+  L.push('Predicted: from ' + money(p.from_price) + ' to about ' + money(p.to_price) + ' (' + pct(p.change_pct) + ')');
+  if (ai.used) {
+    L.push('AI call: ' + ({ up: 'up', down: 'down', flat: 'stable' }[ai.outlook] || '?') + ', ' + pct(ai.change_pct) +
+      (ai.confidence ? ', ' + ai.confidence + ' confidence' : '') + ' (trend + news alone said ' + pct(ai.stat_change_pct) + ')');
+  } else {
+    L.push('Made by: trend + news method (the AI model was not used)');
+  }
+  L.push('');
+  L.push('Why: ' + p.why);
+  L.push(p.counts);
+  if (p.drivers.positive.length) {
+    L.push('');
+    L.push('Pushing it up:');
+    p.drivers.positive.forEach(function (n) { L.push('- ' + n.title); });
+  }
+  if (p.drivers.negative.length) {
+    L.push('');
+    L.push('Pushing it down:');
+    p.drivers.negative.forEach(function (n) { L.push('- ' + n.title); });
+  }
+  if (sum.text) {
+    L.push('');
+    L.push((sum.ai ? 'AI summary' : 'Summary') + ':');
+    L.push(sum.text);
+  }
+  L.push('');
+  L.push(p.disclaimer);
+  return L.join('\n').slice(0, 9800);
+}
+
+async function saveToNotes(p, btn) {
+  const mood = p.sentiment.label === 'neutral' ? 'stable' : p.sentiment.label;
+  const title = ('AI prediction: ' + stock.name + ' looks ' + mood + ' (' + new Date().toLocaleDateString() + ')').slice(0, 120);
+  const done = busy(btn, 'Saving...');
+  try {
+    await api('/api/notes', { method: 'POST', body: { title: title, content: predictionNoteText(p), ticker: TICKER } });
+    toast('Added to your notes');
+    btn.classList.add('hidden');
+    document.getElementById('noteSaved').classList.remove('hidden');
+  } catch (e) {
+    toast(e.message, true);
+    done();
+  }
+}
+
 // the side panel: why it looks this way, the AI's call, and the AI's summary
 function renderSide(p) {
   const s = p.sentiment;
@@ -96,11 +149,15 @@ function renderSide(p) {
     '<h3 style="margin-top:14px">AI summary</h3>' + call +
     '<p>' + esc(sum.text) + '</p>' +
     '<span class="ai-tag">' + (sum.ai ? 'Written by ' + esc(sum.by) : 'Auto summary, AI model not used') + '</span>' +
-    (!sum.ai && sum.note ? '<div class="muted small" style="margin-top:4px">' + esc(sum.note) + '</div>' : '');
+    (!sum.ai && sum.note ? '<div class="muted small" style="margin-top:4px">' + esc(sum.note) + '</div>' : '') +
+    '<div style="margin-top:12px"><button class="btn light sm" id="saveNoteBtn">Add to my notes</button> ' +
+    '<a class="small hidden" id="noteSaved" href="notes.html?t=' + TICKER + '">Saved. View notes</a></div>';
+  document.getElementById('saveNoteBtn').onclick = function () { saveToNotes(p, this); };
   showSide(true);
 }
 
-function toneBadge(score) {
+function toneBadge(score, relevant) {
+  if (relevant === false) return '<span class="tone" title="Not about the company\'s business">n/a</span>';
   const c = score >= 0.15 ? 'pos' : score <= -0.15 ? 'neg' : '';
   const t = (score > 0 ? '+' : '') + score.toFixed(2);
   return '<span class="tone ' + c + '">' + t + '</span>';
@@ -118,7 +175,7 @@ function renderPredictInfo(p) {
     pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
     (p.news.length
       ? '<ul>' + p.news.map(function (n) {
-          return '<li>' + toneBadge(n.score) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
+          return '<li' + (n.relevant === false ? ' style="opacity:.55"' : '') + (n.note ? ' title="' + esc(n.note) + '"' : '') + '>' + toneBadge(n.score, n.relevant) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
             '</a><span class="src">' + esc(n.publisher) + '</span></li>';
         }).join('') + '</ul>'
       : '<div class="muted small" style="margin-top:6px">No recent news came back, so this follows the price trend only.</div>') +
