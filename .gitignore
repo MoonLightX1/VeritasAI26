@@ -23,3 +23,7 @@ Thumbs.db
 
 # the copy the ps1 script makes
 MoneySprout-copy/
+
+# cloudflare secrets
+cloudflare/*.json
+*.pem

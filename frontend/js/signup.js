@@ -1,6 +1,6 @@
-// signup page (also used for demo accounts with ?demo=1)
+// signup page, every account here is a demo account
 
-const IS_DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const IS_DEMO = true;
 
 const form = document.getElementById('form');
 const errBox = document.getElementById('err');
@@ -30,19 +30,11 @@ function setHint(el, text, good) {
   el.className = 'hint ' + (text ? (good ? 'ok' : 'bad') : '');
 }
 
-// demo mode setup
-if (IS_DEMO) {
-  document.title = 'Make a demo account - MoneySprout';
-  document.getElementById('title').textContent = 'Make a demo account';
-  document.getElementById('demoNote').classList.remove('hidden');
-  document.getElementById('submit').textContent = 'Create demo account';
-  api('/api/auth/config', { noRedirect: true }).then(function (c) {
-    if (!c.demo_mode) {
-      showErr('Demo mode is turned off on this server.');
-      submit.disabled = true;
-    }
-  }).catch(function () {});
-}
+// page text
+document.title = 'Create a demo account - MoneySprout';
+document.getElementById('title').textContent = 'Create a demo account';
+document.getElementById('demoNote').classList.remove('hidden');
+submit.textContent = 'Create demo account';
 
 // birthday -> age
 function ageFromBirth() {

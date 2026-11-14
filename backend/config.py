@@ -16,5 +16,9 @@ SESSION_HOURS = 12
 REMEMBER_DAYS = 30
 COOKIE_NAME = "ms_session"
 
-# set this to true if you put it behind https
-COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+# the site is served over https through the cloudflare tunnel, so cookies are secure
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
+
+# only these hostnames are allowed to reach the app (comma separated)
+PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "moneysprout.renengine.com")
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", PUBLIC_HOST).split(",") if h.strip()]

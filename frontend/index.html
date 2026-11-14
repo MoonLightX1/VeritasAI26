@@ -14,7 +14,7 @@
       <div class="right-side">
         <span id="themeSlot"></span>
         <a class="btn light sm" href="login.html">Log in</a>
-        <a class="btn sm" href="signup.html">Sign up</a>
+        <a class="btn sm" href="signup.html">Demo account</a>
       </div>
     </div>
 
@@ -24,8 +24,7 @@
         <h1 style="margin-top:14px">Learn the stock market by <em>actually using it</em></h1>
         <p class="lead">Look up real company names, read price charts, draw your own ideas on them and practice buying and selling with $10,000 of virtual cash. Nothing to lose, lots to learn.</p>
         <div class="actions">
-          <a class="btn lg" href="signup.html">Create a free account</a>
-          <a class="btn light lg demo-link" href="signup.html?demo=1">Make a demo account</a>
+          <a class="btn lg" href="signup.html">Create a demo account</a>
         </div>
         <p class="fine">No real money, no real trades. Prices on the site are simulated.</p>
       </div>
@@ -122,19 +121,14 @@
   <div class="cta">
     <h2>Ready to try it?</h2>
     <p class="muted">It takes about two minutes to set up.</p>
-    <a class="btn lg" href="signup.html">Create a free account</a>
+    <a class="btn lg" href="signup.html">Create a demo account</a>
   </div>
 
   <div class="footer">MoneySprout is an educational simulation. Prices are simulated and no real trades are made.</div>
 
-  <script src="js/app.js"></script>
   <script>
     document.getElementById('themeSlot').innerHTML = themeButton();
 
-    // hide the demo link if the server has demo mode off
-    api('/api/auth/config', { noRedirect: true }).then(function (c) {
-      if (!c.demo_mode) document.querySelectorAll('.demo-link').forEach(function (a) { a.classList.add('hidden'); });
-    }).catch(function () {});
   </script>
 </body>
 </html>

@@ -38,8 +38,3 @@ form.addEventListener('submit', async function (e) {
 });
 
 document.getElementById('themeSlot').innerHTML = themeButton();
-
-// hide demo stuff if the server has demo mode off
-api('/api/auth/config', { noRedirect: true }).then(function (c) {
-  if (!c.demo_mode) document.querySelectorAll('.demo-link').forEach(function (a) { a.classList.add('hidden'); });
-}).catch(function () {});

@@ -72,6 +72,11 @@ def set_cookie(response, token, exp, remember):
 
 
 def client_ip(request):
+    # cloudflare puts the real visitor ip in this header, the app is only
+    # reachable through the tunnel so it is safe to trust it
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -115,8 +120,6 @@ def check_parent(p, own_email):
 def signup(body: SignupBody, request: Request, response: Response, db=Depends(get_db)):
     if security.too_many("signup:" + client_ip(request), limit=15, window=600):
         raise HTTPException(429, "Too many tries, wait a few minutes.")
-    if body.demo and not DEMO_MODE:
-        raise HTTPException(403, "Demo mode is off.")
 
     username = body.username.strip()
     email = body.email.strip().lower()
@@ -154,10 +157,8 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
     if not body.accept_terms:
         raise HTTPException(400, "Please agree to the rules to continue.")
 
-    # demo accounts always need parent info, real ones only under 18
-    parent = None
-    if body.demo or band != "18_plus":
-        parent = check_parent(body.parent, email)
+    # every account is a demo account and always needs parent info
+    parent = check_parent(body.parent, email)
 
     details = {
         "first_name": body.first_name.strip(),
@@ -174,7 +175,7 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
     }
     try:
         uid = accounts.create_user(db, username, email, body.password, details["first_name"], band,
-                                   is_demo=body.demo, details=details, parent=parent)
+                                   is_demo=True, details=details, parent=parent)
     except sqlite3.IntegrityError:
         db.rollback()
         raise HTTPException(400, "That username or email is already used.")

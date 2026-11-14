@@ -3,13 +3,17 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from config import FRONTEND_DIR
+from config import FRONTEND_DIR, ALLOWED_HOSTS
 from database import init_db
 from routers import (auth, stocks, portfolio, watchlist, notes, annotations,
                      parental_controls, dashboard)
 
-app = FastAPI(title="MoneySprout")
+app = FastAPI(title="MoneySprout", docs_url=None, redoc_url=None, openapi_url=None)
+
+# only answer for moneysprout.renengine.com (the cloudflare tunnel passes that host through)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 init_db()
 
