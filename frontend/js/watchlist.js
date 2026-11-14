@@ -15,10 +15,10 @@ async function load() {
     listBox.innerHTML = data.items.map(function (c) {
       const q = c.quote;
       return '<div class="row"><div class="l">' + logoHtml(c.ticker) +
-        '<div><a href="stock.html?t=' + c.ticker + '"><b>' + esc(c.name) + '</b></a><div class="muted small">' + esc(c.sector) + '</div></div></div>' +
+        '<div><a href="stock?t=' + c.ticker + '"><b>' + esc(c.name) + '</b></a><div class="muted small">' + esc(c.sector) + '</div></div></div>' +
         (c.spark && c.spark.length ? '<canvas class="spark" data-t="' + c.ticker + '" style="width:90px;height:34px"></canvas>' : '<span></span>') +
         '<div class="right"><b>' + money(q.price) + '</b><div class="small ' + cls(q.change_pct) + '">' + pct(q.change_pct) + '</div></div>' +
-        '<div class="nowrap"><a class="btn sm" href="stock.html?t=' + c.ticker + '">Open</a> ' +
+        '<div class="nowrap"><a class="btn sm" href="stock?t=' + c.ticker + '">Open</a> ' +
         '<button class="btn light sm" data-remove="' + c.ticker + '">Remove</button></div></div>';
     }).join('');
     const sp = {};
@@ -66,7 +66,7 @@ document.getElementById('addBtn').onclick = async function () {
 };
 
 async function start() {
-  await initShell('watchlist.html');
+  await initShell('watchlist');
   document.getElementById('banner').innerHTML = demoBanner();
   const data = await api('/api/stocks/search?q=');
   companies = data.results;

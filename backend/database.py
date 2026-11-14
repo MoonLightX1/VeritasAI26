@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS portfolios (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     cash_cents INTEGER NOT NULL,
+    deposited_cents INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -131,6 +132,10 @@ def connect():
 def init_db():
     conn = connect()
     conn.executescript(SCHEMA)
+    # older databases do not have the deposit column yet
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(portfolios)").fetchall()]
+    if "deposited_cents" not in cols:
+        conn.execute("ALTER TABLE portfolios ADD COLUMN deposited_cents INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
 

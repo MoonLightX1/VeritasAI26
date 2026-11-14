@@ -11,7 +11,7 @@ function showErr(msg) {
 
 // if already logged in just skip ahead
 api('/api/auth/me', { noRedirect: true }).then(function () {
-  location.href = 'dashboard.html';
+  location.href = 'dashboard';
 }).catch(function () {});
 
 form.addEventListener('submit', async function (e) {
@@ -29,7 +29,7 @@ form.addEventListener('submit', async function (e) {
         remember: document.getElementById('remember').checked
       }
     });
-    location.href = 'dashboard.html';
+    location.href = 'dashboard';
   } catch (err) {
     showErr(err.message);
     submit.disabled = false;

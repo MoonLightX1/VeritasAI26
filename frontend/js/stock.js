@@ -101,6 +101,7 @@ function predictionNoteText(p) {
     L.push(sum.text);
   }
   L.push('');
+  L.push('Warning: AI can be wrong. This is a guess, not advice.');
   L.push(p.disclaimer);
   return L.join('\n').slice(0, 9800);
 }
@@ -146,12 +147,12 @@ function renderSide(p) {
     '<p>' + esc(p.why) + '</p>' +
     driverList('Pushing it up', p.drivers.positive, 'up') +
     driverList('Pushing it down', p.drivers.negative, 'down') +
-    '<h3 style="margin-top:14px">AI summary</h3>' + call +
+    '<h3 style="margin-top:14px">AI summary</h3>' + aiWarning() + call +
     '<p>' + esc(sum.text) + '</p>' +
     '<span class="ai-tag">' + (sum.ai ? 'Written by ' + esc(sum.by) : 'Auto summary, AI model not used') + '</span>' +
     (!sum.ai && sum.note ? '<div class="muted small" style="margin-top:4px">' + esc(sum.note) + '</div>' : '') +
     '<div style="margin-top:12px"><button class="btn light sm" id="saveNoteBtn">Add to my notes</button> ' +
-    '<a class="small hidden" id="noteSaved" href="notes.html?t=' + TICKER + '">Saved. View notes</a></div>';
+    '<a class="small hidden" id="noteSaved" href="notes?t=' + TICKER + '">Saved. View notes</a></div>';
   document.getElementById('saveNoteBtn').onclick = function () { saveToNotes(p, this); };
   showSide(true);
 }
@@ -170,7 +171,8 @@ function renderPredictInfo(p) {
   box.innerHTML =
     '<div class="pi-head"><b>News mood:</b> ' + toneBadge(s.score) + ' <b>' + esc(s.label) + '</b>' +
     '<span class="muted small">from ' + s.articles + ' recent headline' + (s.articles === 1 ? '' : 's') +
-    ' &middot; scored by ' + esc(s.engine) + '</span></div>' + (s.engine_note ? '<div class="muted small">Model: ' + esc(s.engine_note) + '</div>' : '') + +
+    ' &middot; scored by ' + esc(s.engine) + '</span></div>' + (s.engine_note ? '<div class="muted small">Model: ' + esc(s.engine_note) + '</div>' : '') +
+    aiWarning() +
     '<div>' + esc(p.why) + ' The dashed line ends around <b>' + money(p.to_price) + '</b> <span class="' + (dir === 'up' ? 'up' : 'down') + '">(' +
     pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
     (p.news.length
@@ -407,7 +409,7 @@ function renderHead() {
 
   const wb = document.getElementById('watchBtn');
   wb.textContent = stock.watching ? 'Remove from watchlist' : 'Add to watchlist';
-  document.getElementById('noteLink').href = 'notes.html?t=' + stock.ticker;
+  document.getElementById('noteLink').href = 'notes?t=' + stock.ticker;
 }
 
 document.getElementById('watchBtn').onclick = async function () {
@@ -460,7 +462,7 @@ function openTrade(mode) {
         '<div class="field"><label id="inLabel"></label><input type="number" id="amt" min="0" step="any"></div>' +
         '<div class="summary-box" id="calc"></div>' +
         '<div id="tradeErr" class="banner err hidden"></div>' +
-        '<button class="btn block" id="go">Buy</button>';
+        '<button class="btn buy block" id="go">Buy</button>';
     } else {
       body.innerHTML =
         '<div class="summary-box"><div><span>Latest price</span><b>' + money(q.price) + '</b></div>' +
@@ -470,7 +472,7 @@ function openTrade(mode) {
             '<button class="btn light sm" id="allBtn" style="margin-top:6px">Sell all</button></div>' +
             '<div class="summary-box" id="calc"></div>' +
             '<div id="tradeErr" class="banner err hidden"></div>' +
-            '<button class="btn block" id="go">Sell</button>'
+            '<button class="btn sell block" id="go">Sell</button>'
           : '<div class="empty">You do not own any shares of this company yet.</div>');
     }
     wireBody();
@@ -582,15 +584,15 @@ window.addEventListener('beforeunload', function (e) {
 });
 
 async function start() {
-  await initShell('explore.html');
+  await initShell('explore');
   document.getElementById('banner').innerHTML = demoBanner();
 
-  if (!TICKER) { location.href = 'explore.html'; return; }
+  if (!TICKER) { location.href = 'explore'; return; }
   try {
     stock = await api('/api/stocks/' + TICKER);
   } catch (e) {
     document.getElementById('page').innerHTML = '<div class="banner err">' + esc(e.message) +
-      '</div><a class="btn" href="explore.html">Back to Explore</a>';
+      '</div><a class="btn" href="explore">Back to Explore</a>';
     return;
   }
   const hold = await api('/api/portfolio/holdings');

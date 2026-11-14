@@ -5,12 +5,47 @@ function card(label, value, sub, subClass, main) {
     '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') + '</div>';
 }
 
+// adds the fake money, then reloads the numbers
+async function deposit(amount, btn) {
+  const done = busy(btn, 'Adding');
+  try {
+    const r = await api('/api/portfolio/deposit', { method: 'POST', body: { amount: amount } });
+    toast('Added ' + money(r.added));
+    document.getElementById('depAmt').value = '';
+    setWallet(r.cash);
+    await load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+  done();
+}
+
+function setupDeposit() {
+  const box = document.getElementById('depositCard');
+  box.classList.remove('hidden');
+  box.querySelectorAll('button[data-amt]').forEach(function (b) {
+    b.onclick = function () { deposit(Number(b.dataset.amt), b); };
+  });
+  document.getElementById('depBtn').onclick = function () {
+    const v = Number(document.getElementById('depAmt').value);
+    if (!v || v < 1) { toast('Type an amount first.', true); return; }
+    deposit(v, this);
+  };
+}
+
 async function start() {
-  await initShell('portfolio.html');
+  await initShell('portfolio');
+  if (window.ME.demo_mode) setupDeposit();
+  await load();
+}
+
+async function load() {
   document.getElementById('banner').innerHTML = demoBanner();
-  document.getElementById('summary').innerHTML = '<div class="skel skel-big"></div>';
-  document.getElementById('holdings').innerHTML = skeletonRows(3);
-  document.getElementById('tx').innerHTML = skeletonRows(3);
+  if (!document.getElementById('summary').innerHTML) {
+    document.getElementById('summary').innerHTML = '<div class="skel skel-big"></div>';
+    document.getElementById('holdings').innerHTML = skeletonRows(3);
+    document.getElementById('tx').innerHTML = skeletonRows(3);
+  }
 
   try {
     const p = await api('/api/portfolio');
@@ -23,12 +58,12 @@ async function start() {
 
     const hb = document.getElementById('holdings');
     if (!p.holdings.length) {
-      hb.innerHTML = '<div class="empty">No shares yet. <a href="explore.html">Find a company</a> to buy your first.</div>';
+      hb.innerHTML = '<div class="empty">No shares yet. <a href="explore">Find a company</a> to buy your first.</div>';
     } else {
       hb.innerHTML = '<table><thead><tr><th>Company</th><th class="right">Shares</th><th class="right">Avg price</th>' +
         '<th class="right">Latest price</th><th class="right">Value</th><th class="right">Profit / loss</th></tr></thead><tbody>' +
         p.holdings.map(function (h) {
-          return '<tr><td><a href="stock.html?t=' + h.ticker + '"><b>' + esc(h.name) + '</b></a> <span class="muted">' + h.ticker + '</span></td>' +
+          return '<tr><td><a href="stock?t=' + h.ticker + '"><b>' + esc(h.name) + '</b></a> <span class="muted">' + h.ticker + '</span></td>' +
             '<td class="right">' + h.quantity + '</td><td class="right">' + money(h.avg_price) + '</td>' +
             '<td class="right">' + money(h.price) + '</td><td class="right">' + money(h.value) + '</td>' +
             '<td class="right ' + cls(h.profit) + '">' + signedMoney(h.profit) + ' (' + pct(h.profit_pct) + ')</td></tr>';
@@ -49,7 +84,7 @@ async function start() {
         t.transactions.map(function (x) {
           return '<tr><td class="nowrap">' + shortDate(x.created_at) + '</td>' +
             '<td><span class="pill ' + (x.type === 'BUY' ? '' : 'warn') + '">' + x.type + '</span></td>' +
-            '<td><a href="stock.html?t=' + x.ticker + '">' + x.ticker + '</a></td>' +
+            '<td><a href="stock?t=' + x.ticker + '">' + x.ticker + '</a></td>' +
             '<td class="right">' + x.quantity + '</td><td class="right">' + money(x.price) + '</td>' +
             '<td class="right">' + money(x.total) + '</td></tr>';
         }).join('') + '</tbody></table>';

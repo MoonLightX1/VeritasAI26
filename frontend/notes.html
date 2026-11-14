@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Notes - MoneySprout</title>
-  <script src="js/theme.js?v=7"></script>
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <script src="js/theme.js?v=9"></script>
+  <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
   <div id="page" class="hidden">
@@ -13,16 +13,36 @@
     <p class="muted">Write down what you notice about a company. Only you can see your notes.</p>
 
     <div class="notes-layout">
-      <div class="card">
+      <div class="card notes-side">
         <div class="field"><input type="text" id="search" placeholder="Search your notes"></div>
-        <div class="field">
+        <div class="two-col" style="margin-bottom:12px">
           <select id="filter"><option value="">All companies</option></select>
+          <select id="sort">
+            <option value="new">Newest first</option>
+            <option value="old">Oldest first</option>
+            <option value="az">Title A to Z</option>
+          </select>
         </div>
         <button class="btn block" id="newBtn">New note</button>
-        <div id="list" style="margin-top:12px"></div>
+        <div class="muted small" id="count" style="margin:12px 0 4px"></div>
+        <div id="list"></div>
       </div>
 
-      <div class="card" id="editor">
+      <div class="card" id="reader">
+        <div class="note-head">
+          <div>
+            <h2 id="rTitle"></h2>
+            <div class="note-meta" id="rMeta"></div>
+          </div>
+          <div class="note-actions">
+            <button class="btn light" id="editBtn">Edit</button>
+            <button class="btn danger" id="delBtn">Delete</button>
+          </div>
+        </div>
+        <div class="note-body" id="rBody"></div>
+      </div>
+
+      <div class="card hidden" id="editor">
         <div class="field">
           <label for="title">Title</label>
           <input type="text" id="title" maxlength="120">
@@ -34,17 +54,21 @@
         <div class="field">
           <label for="content">Note</label>
           <textarea id="content" maxlength="10000" placeholder="What did you notice? What do you want to check later?"></textarea>
+          <div class="hint muted" id="counter"></div>
+          <div class="hint muted">Start a line with - for a bullet or # for a heading. Ctrl+S saves.</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="note-actions">
           <button class="btn" id="saveBtn">Save note</button>
-          <button class="btn danger" id="delBtn">Delete</button>
-          <span class="muted small" id="stamp"></span>
+          <button class="btn light" id="cancelBtn">Cancel</button>
+          <span class="muted small" id="dirty"></span>
         </div>
       </div>
+
+      <div class="card empty hidden" id="blank">No note open. Pick one on the left or start a new one.</div>
     </div>
   </div>
 
-  <script src="js/app.js?v=7"></script>
-  <script src="js/notes.js?v=7"></script>
+  <script src="js/app.js?v=9"></script>
+  <script src="js/notes.js?v=9"></script>
 </body>
 </html>

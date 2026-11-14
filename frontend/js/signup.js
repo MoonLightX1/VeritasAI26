@@ -197,7 +197,7 @@ form.addEventListener('submit', async function (e) {
   submit.textContent = 'Creating account...';
   try {
     await api('/api/auth/signup', { method: 'POST', noRedirect: true, body: body });
-    location.href = 'dashboard.html';
+    location.href = 'dashboard';
   } catch (err) {
     showErr(err.message);
     submit.disabled = false;

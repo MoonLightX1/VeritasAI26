@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from config import DEMO_MODE
 from database import get_db
 from deps import current_user
 from services import portfolio as pf
@@ -20,6 +21,10 @@ class SellBody(BaseModel):
     ticker: str
     quantity: Optional[float] = None
     sell_all: bool = False
+
+
+class DepositBody(BaseModel):
+    amount: float
 
 
 class ResetBody(BaseModel):
@@ -64,6 +69,17 @@ def sell(body: SellBody, user=Depends(current_user), db=Depends(get_db)):
     need_permission(db, user)
     try:
         return pf.sell(db, user["id"], body.ticker, body.quantity, body.sell_all)
+    except pf.TradeError as e:
+        raise HTTPException(400, str(e))
+
+
+# fake money top up. only in demo mode, and it skips the parent check on purpose
+@router.post("/deposit")
+def deposit(body: DepositBody, user=Depends(current_user), db=Depends(get_db)):
+    if not DEMO_MODE:
+        raise HTTPException(403, "Adding pretend money is turned off.")
+    try:
+        return pf.deposit(db, user["id"], body.amount)
     except pf.TradeError as e:
         raise HTTPException(400, str(e))
 

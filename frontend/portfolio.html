@@ -4,14 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Portfolio - MoneySprout</title>
-  <script src="js/theme.js?v=7"></script>
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <script src="js/theme.js?v=9"></script>
+  <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
   <div id="page" class="hidden">
     <div id="banner"></div>
 
     <div class="summary" id="summary"></div>
+
+    <div class="card block-gap hidden" id="depositCard">
+      <h2>Add pretend money</h2>
+      <div class="banner">DEMO MODE: overrides parent decision</div>
+      <p class="muted small">This only adds fake cash. It does not count as profit, and a reset takes it away again.</p>
+      <div class="deposit-row">
+        <button class="btn light" data-amt="1000">+ $1,000</button>
+        <button class="btn light" data-amt="5000">+ $5,000</button>
+        <button class="btn light" data-amt="10000">+ $10,000</button>
+        <input type="number" id="depAmt" min="1" max="100000" step="1" placeholder="Other amount">
+        <button class="btn" id="depBtn">Add</button>
+      </div>
+    </div>
 
     <div class="card block-gap">
       <h2>Holdings</h2>
@@ -24,7 +37,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=7"></script>
-  <script src="js/portfolio.js?v=7"></script>
+  <script src="js/app.js?v=9"></script>
+  <script src="js/portfolio.js?v=9"></script>
 </body>
 </html>

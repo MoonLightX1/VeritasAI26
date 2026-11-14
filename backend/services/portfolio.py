@@ -3,6 +3,10 @@ from config import START_CASH_CENTS
 from services import market
 
 
+MAX_DEPOSIT_CENTS = 10_000_000          # $100,000 at a time
+MAX_DEPOSIT_TOTAL_CENTS = 1_000_000_000  # $10,000,000 all together
+
+
 class TradeError(Exception):
     pass
 
@@ -25,6 +29,31 @@ def permission_status(db, user_id):
 def get_cash_cents(db, user_id):
     row = db.execute("SELECT cash_cents FROM portfolios WHERE user_id = ?", (user_id,)).fetchone()
     return row["cash_cents"]
+
+
+def get_deposited_cents(db, user_id):
+    row = db.execute("SELECT deposited_cents FROM portfolios WHERE user_id = ?", (user_id,)).fetchone()
+    return row["deposited_cents"]
+
+
+def deposit(db, user_id, amount):
+    # demo only, adds fake cash and remembers it so it does not count as profit
+    if amount is None or amount <= 0:
+        raise TradeError("Enter an amount more than zero.")
+    cents = int(round(amount * 100))
+    if cents < 100:
+        raise TradeError("The smallest deposit is $1.")
+    if cents > MAX_DEPOSIT_CENTS:
+        raise TradeError("One deposit can be at most $100,000.")
+    if get_deposited_cents(db, user_id) + cents > MAX_DEPOSIT_TOTAL_CENTS:
+        raise TradeError("You hit the $10,000,000 limit of pretend deposits.")
+    db.execute(
+        "UPDATE portfolios SET cash_cents = cash_cents + ?, deposited_cents = deposited_cents + ?, updated_at = ? "
+        "WHERE user_id = ?",
+        (cents, cents, now(), user_id),
+    )
+    db.commit()
+    return {"added": cents / 100, "cash": get_cash_cents(db, user_id) / 100}
 
 
 def holdings_detail(db, user_id):
@@ -58,7 +87,8 @@ def summary(db, user_id):
     holdings_value = sum(h["value"] for h in hold)
     day_change = sum(h["day_change"] for h in hold)
     total = cash + holdings_value
-    start = START_CASH_CENTS / 100
+    # deposits count as money put in, so they are not profit
+    start = (START_CASH_CENTS + get_deposited_cents(db, user_id)) / 100
     prev_total = total - day_change
     return {
         "cash": round(cash, 2),
@@ -166,7 +196,7 @@ def reset(db, user_id):
     db.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
     db.execute(
-        "UPDATE portfolios SET cash_cents = ?, updated_at = ? WHERE user_id = ?",
+        "UPDATE portfolios SET cash_cents = ?, deposited_cents = 0, updated_at = ? WHERE user_id = ?",
         (START_CASH_CENTS, now(), user_id),
     )
     db.commit()

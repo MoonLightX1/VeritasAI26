@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from services.market import MarketUnavailable
@@ -88,10 +88,30 @@ app.include_router(parental_controls.router)
 app.include_router(dashboard.router)
 
 
+# every page name that has an html file, so /login works without .html
+PAGES = set(f[:-5] for f in os.listdir(FRONTEND_DIR) if f.endswith(".html"))
+
+
 @app.get("/")
 def home():
     return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
 
-# serve the html/css/js straight from the frontend folder
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+@app.get("/{page}")
+def serve_page(page: str, request: Request):
+    # old links with .html just bounce to the clean one
+    if page.endswith(".html"):
+        name = page[:-5]
+        target = "/" if name == "index" else "/" + name
+        if request.url.query:
+            target += "?" + request.url.query
+        return RedirectResponse(target, status_code=307)
+    # only names from the list above, so nobody can ask for random files
+    if page in PAGES and page != "index":
+        return FileResponse(os.path.join(FRONTEND_DIR, page + ".html"))
+    return PlainTextResponse("Not found", status_code=404)
+
+
+# css and js folders are plain static files
+app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
+app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")

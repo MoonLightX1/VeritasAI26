@@ -30,7 +30,6 @@ def dashboard(user=Depends(current_user), db=Depends(get_db)):
         v["name"] = c["name"] if c else v["ticker"]
     return {
         "wallet": pf.summary(db, uid),
-        "indices": market.index_quotes(),
         "watchlist": watch_items(db, uid)[:6],
         "trending": market.trending(5),
         "activity": activity,

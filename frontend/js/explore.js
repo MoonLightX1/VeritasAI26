@@ -18,7 +18,7 @@ async function search() {
     }
     resultsBox.innerHTML = list.map(function (c) {
       const qt = c.quote;
-      return '<a class="card stock-card" href="stock.html?t=' + c.ticker + '">' +
+      return '<a class="card stock-card" href="stock?t=' + c.ticker + '">' +
         '<div class="row" style="border:none;padding:0 0 8px"><div class="l">' + logoHtml(c.ticker) +
         '<div><b>' + esc(c.name) + '</b><div class="muted small">' + esc(c.exchange) + '</div></div></div>' +
         '<div class="right"><b>' + money(qt.price) + '</b><div class="small ' + cls(qt.change_pct) + '">' + pct(qt.change_pct) + '</div></div></div>' +
@@ -35,7 +35,7 @@ qInput.addEventListener('input', function () {
 });
 
 async function start() {
-  await initShell('explore.html');
+  await initShell('explore');
   const params = new URLSearchParams(location.search);
   if (params.get('q')) qInput.value = params.get('q');
   search();

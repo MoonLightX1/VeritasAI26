@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Settings - MoneySprout</title>
-  <script src="js/theme.js?v=7"></script>
-  <link rel="stylesheet" href="css/style.css?v=7">
+  <script src="js/theme.js?v=9"></script>
+  <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
   <div id="page" class="hidden">
@@ -33,6 +33,7 @@
     <div class="card" style="margin-top:16px">
       <h2>Parent permission</h2>
       <p class="muted">Younger users need a parent to say yes before practice trading. Practice trading only uses pretend money.</p>
+      <p class="muted small" id="demoState"></p>
       <h3 style="margin-top:14px">Parent or guardian on file</h3>
       <div id="parentInfo"></div>
       <h3 style="margin-top:14px">Status</h3>
@@ -50,11 +51,6 @@
     </div>
 
     <div class="card">
-      <h2>Demo mode</h2>
-      <p id="demoState" class="muted"></p>
-    </div>
-
-    <div class="card">
       <h2>Reset and delete</h2>
       <p class="muted">Reset puts your cash back to $10,000 and removes your practice holdings and transactions. Your notes, watchlist and drawings stay.</p>
       <button class="btn danger" id="resetBtn">Reset my virtual portfolio</button>
@@ -66,7 +62,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=7"></script>
-  <script src="js/settings.js?v=7"></script>
+  <script src="js/app.js?v=9"></script>
+  <script src="js/settings.js?v=9"></script>
 </body>
 </html>

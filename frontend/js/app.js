@@ -18,7 +18,7 @@ async function api(path, options) {
   if (!res.ok) {
     // not logged in, send them to login (but not if we are already on a public page)
     if (res.status === 401 && !options.noRedirect) {
-      location.href = 'login.html';
+      location.href = 'login';
     }
     let msg = 'Something went wrong.';
     if (data && typeof data.detail === 'string') msg = data.detail;
@@ -111,12 +111,12 @@ function logoHtml(ticker, big) {
 }
 
 const NAV = [
-  ['dashboard.html', 'Dashboard'],
-  ['explore.html', 'Explore Stocks'],
-  ['portfolio.html', 'My Portfolio'],
-  ['watchlist.html', 'Watchlist'],
-  ['notes.html', 'My Notes'],
-  ['settings.html', 'Settings']
+  ['dashboard', 'Dashboard'],
+  ['explore', 'Explore Stocks'],
+  ['portfolio', 'My Portfolio'],
+  ['watchlist', 'Watchlist'],
+  ['notes', 'My Notes'],
+  ['settings', 'Settings']
 ];
 
 // builds the top bar around the page content
@@ -135,13 +135,13 @@ async function initShell(active) {
 
   shell.innerHTML =
     '<header class="topbar">' +
-      '<a class="brand" href="dashboard.html">Money<span>Sprout</span></a>' +
+      '<a class="brand" href="dashboard">Money<span>Sprout</span></a>' +
       '<nav class="nav">' + links + '</nav>' +
       '<div class="search"><input type="text" id="globalSearch" placeholder="Search a company" autocomplete="off">' +
       '<div class="suggest hidden" id="globalSuggest"></div></div>' +
       '<div class="who">' +
         '<span class="who-name muted">' + esc(me.display_name) + '</span>' +
-        '<a class="cash" href="portfolio.html">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
+        '<a class="cash" href="portfolio">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
         themeButton() +
         '<button class="btn light sm" id="logoutBtn">Log out</button>' +
       '</div>' +
@@ -154,7 +154,7 @@ async function initShell(active) {
 
   document.getElementById('logoutBtn').onclick = async function () {
     try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-    location.href = 'index.html';
+    location.href = '/';
   };
 
   setupSearch();
@@ -184,7 +184,7 @@ function setupSearch() {
           box.innerHTML = '<div class="empty small">No companies found</div>';
         } else {
           box.innerHTML = items.map(function (r) {
-            return '<a href="stock.html?t=' + r.ticker + '"><span>' + esc(r.name) + ' <span class="muted">' +
+            return '<a href="stock?t=' + r.ticker + '"><span>' + esc(r.name) + ' <span class="muted">' +
               r.ticker + '</span></span><span>' + money(r.quote.price) + '</span></a>';
           }).join('');
         }
@@ -195,7 +195,7 @@ function setupSearch() {
 
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && input.value.trim()) {
-      location.href = 'explore.html?q=' + encodeURIComponent(input.value.trim());
+      location.href = 'explore?q=' + encodeURIComponent(input.value.trim());
     }
   });
 
@@ -214,6 +214,12 @@ function liveLabel(q) {
 
 function demoBanner() {
   return '<div class="banner">Pretend money only, not financial advice. Prices come from Yahoo Finance and can run about 15 minutes behind.</div>';
+}
+
+// warning that goes above anything the ai wrote
+function aiWarning() {
+  return '<div class="banner warn-ai"><b>Heads up:</b> this was written by an AI from news headlines. ' +
+    'It can be wrong or out of date. It is a guess, not advice. Do not use it for real money decisions.</div>';
 }
 
 // loading placeholders, grey bars that pulse a little

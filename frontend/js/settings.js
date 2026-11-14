@@ -24,13 +24,11 @@ function renderAccount() {
       row('School level', GRADE_TEXT[m.details.grade] || '') : '') +
     row('Joined', shortDate(m.created_at)) +
     row('Practice trades', m.transactions) +
-    row('Watchlist companies', m.watchlist_count) +
-    row('Predictions', m.predictions + ' (coming later)');
+    row('Watchlist companies', m.watchlist_count);
   document.getElementById('dname').value = m.display_name;
   document.getElementById('demoState').textContent = m.demo_mode
-    ? 'Demo mode is ON. Demo accounts can be made and the demo parent override is available.' +
-      (m.is_demo ? ' This is a demo account.' : '')
-    : 'Demo mode is OFF. Demo accounts and the demo parent override are disabled.';
+    ? 'Demo mode is on, so the demo parent override and pretend deposits are available.'
+    : 'Demo mode is off.';
   renderParent();
 }
 
@@ -140,12 +138,12 @@ document.getElementById('delBtn').onclick = async function () {
   if (!confirm('Delete your account forever? This cannot be undone.')) return;
   try {
     await api('/api/auth/delete-account', { method: 'POST', body: { password: pw } });
-    location.href = 'index.html';
+    location.href = '/';
   } catch (e) { toast(e.message, true); }
 };
 
 async function start() {
-  await initShell('settings.html');
+  await initShell('settings');
   renderAccount();
   loadPerm();
 }
