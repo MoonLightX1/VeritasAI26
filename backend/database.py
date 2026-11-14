@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import datetime as dt
 
@@ -122,22 +123,55 @@ def now():
     return dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
+# rules the database enforces itself, even if some code path forgets to check
+TRIGGERS = """
+CREATE TRIGGER IF NOT EXISTS cash_not_negative_ins BEFORE INSERT ON portfolios
+WHEN NEW.cash_cents < 0
+BEGIN SELECT RAISE(ABORT, 'cash cannot be negative'); END;
+
+CREATE TRIGGER IF NOT EXISTS cash_not_negative_upd BEFORE UPDATE OF cash_cents ON portfolios
+WHEN NEW.cash_cents < 0
+BEGIN SELECT RAISE(ABORT, 'cash cannot be negative'); END;
+
+CREATE TRIGGER IF NOT EXISTS holding_positive_ins BEFORE INSERT ON holdings
+WHEN NEW.quantity <= 0 OR NEW.avg_price < 0
+BEGIN SELECT RAISE(ABORT, 'bad holding'); END;
+
+CREATE TRIGGER IF NOT EXISTS holding_positive_upd BEFORE UPDATE ON holdings
+WHEN NEW.quantity <= 0 OR NEW.avg_price < 0
+BEGIN SELECT RAISE(ABORT, 'bad holding'); END;
+
+CREATE TRIGGER IF NOT EXISTS tx_kind_ins BEFORE INSERT ON transactions
+WHEN NEW.type NOT IN ('BUY', 'SELL') OR NEW.quantity <= 0 OR NEW.total_cents < 0
+BEGIN SELECT RAISE(ABORT, 'bad transaction'); END;
+"""
+
+
 def connect():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
 
 def init_db():
     conn = connect()
     conn.executescript(SCHEMA)
-    # older databases do not have the deposit column yet
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.executescript(TRIGGERS)
+    # older databases do not have the deposit column yet, add it
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(portfolios)").fetchall()]
     if "deposited_cents" not in cols:
         conn.execute("ALTER TABLE portfolios ADD COLUMN deposited_cents INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
+    # only the owner should be able to read the database file (does nothing on windows, that is fine)
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            os.chmod(DB_PATH + suffix, 0o600)
+        except OSError:
+            pass
 
 
 # fastapi dependency, gives each request its own connection

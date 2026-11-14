@@ -1,3 +1,5 @@
+import math
+
 from database import now
 from config import START_CASH_CENTS
 from services import market
@@ -31,6 +33,16 @@ def get_cash_cents(db, user_id):
     return row["cash_cents"]
 
 
+def finite(n):
+    # NaN and infinity would crash the maths, so refuse them up front
+    return n is not None and isinstance(n, (int, float)) and math.isfinite(n)
+
+
+def lock_db(db):
+    # takes the write lock now, so two trades at the same time cannot both spend the same cash
+    db.execute("BEGIN IMMEDIATE")
+
+
 def get_deposited_cents(db, user_id):
     row = db.execute("SELECT deposited_cents FROM portfolios WHERE user_id = ?", (user_id,)).fetchone()
     return row["deposited_cents"]
@@ -38,14 +50,18 @@ def get_deposited_cents(db, user_id):
 
 def deposit(db, user_id, amount):
     # demo only, adds fake cash and remembers it so it does not count as profit
-    if amount is None or amount <= 0:
+    if not finite(amount) or amount <= 0:
         raise TradeError("Enter an amount more than zero.")
+    if amount > 1_000_000:
+        raise TradeError("One deposit can be at most $100,000.")
     cents = int(round(amount * 100))
     if cents < 100:
         raise TradeError("The smallest deposit is $1.")
     if cents > MAX_DEPOSIT_CENTS:
         raise TradeError("One deposit can be at most $100,000.")
+    lock_db(db)
     if get_deposited_cents(db, user_id) + cents > MAX_DEPOSIT_TOTAL_CENTS:
+        db.rollback()
         raise TradeError("You hit the $10,000,000 limit of pretend deposits.")
     db.execute(
         "UPDATE portfolios SET cash_cents = cash_cents + ?, deposited_cents = deposited_cents + ?, updated_at = ? "
@@ -107,9 +123,11 @@ def buy(db, user_id, ticker, quantity=None, amount=None):
     ticker = ticker.upper()
     if not market.is_company(ticker):
         raise TradeError("Unknown company.")
-    price = market.price_at(ticker)
     if quantity is None and amount is None:
         raise TradeError("Enter a number of shares or an amount.")
+    if (quantity is not None and not finite(quantity)) or (amount is not None and not finite(amount)):
+        raise TradeError("That number does not look right.")
+    price = market.price_at(ticker)
     if quantity is None:
         if amount <= 0:
             raise TradeError("Amount must be more than zero.")
@@ -122,8 +140,10 @@ def buy(db, user_id, ticker, quantity=None, amount=None):
     total_cents = int(round(quantity * price * 100))
     if total_cents <= 0:
         raise TradeError("That is too small to buy.")
+    lock_db(db)
     cash = get_cash_cents(db, user_id)
     if total_cents > cash:
+        db.rollback()
         raise TradeError("Not enough virtual cash for that.")
     row = db.execute(
         "SELECT * FROM holdings WHERE user_id = ? AND ticker = ?", (user_id, ticker)
@@ -155,20 +175,29 @@ def buy(db, user_id, ticker, quantity=None, amount=None):
 
 def sell(db, user_id, ticker, quantity=None, sell_all=False):
     ticker = ticker.upper()
+    if not market.is_company(ticker):
+        raise TradeError("Unknown company.")
+    if quantity is not None and not finite(quantity):
+        raise TradeError("That number does not look right.")
+    # price first (can be slow), then lock, then read what they own
+    price = market.price_at(ticker)
+    lock_db(db)
     row = db.execute(
         "SELECT * FROM holdings WHERE user_id = ? AND ticker = ?", (user_id, ticker)
     ).fetchone()
     if not row:
+        db.rollback()
         raise TradeError("You do not own any shares of that company.")
     if sell_all:
         quantity = row["quantity"]
     if quantity is None or quantity <= 0:
+        db.rollback()
         raise TradeError("Enter how many shares to sell.")
     quantity = round(quantity, 4)
     if quantity > row["quantity"] + 0.00001:
+        db.rollback()
         raise TradeError("You only own %s shares." % row["quantity"])
     quantity = min(quantity, row["quantity"])
-    price = market.price_at(ticker)
     total_cents = int(round(quantity * price * 100))
     left = round(row["quantity"] - quantity, 4)
     if left <= 0.00005:

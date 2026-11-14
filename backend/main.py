@@ -1,7 +1,9 @@
+import logging
 import os
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, PlainTextResponse
@@ -9,7 +11,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from services.market import MarketUnavailable
 import security
-from config import FRONTEND_DIR, ALLOWED_HOSTS, COOKIE_SECURE
+from config import FRONTEND_DIR, ALLOWED_HOSTS, COOKIE_SECURE, PUBLIC_HOST
 from database import init_db
 from routers.auth import client_ip
 from routers import (auth, stocks, portfolio, watchlist, notes, annotations,
@@ -25,9 +27,16 @@ init_db()
 
 MAX_BODY = 400_000
 OUR_HOSTS = set(h.split(":")[0].lower() for h in ALLOWED_HOSTS)
+WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
+
+# no CORS middleware on purpose. the site only talks to itself, so browsers on other
+# sites are not allowed to read our api. do not add one unless you really need it.
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-       "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+       "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
+       "frame-ancestors 'none'")
+if COOKIE_SECURE:
+    CSP += "; upgrade-insecure-requests"
 
 
 def deny(code, msg):
@@ -38,38 +47,72 @@ def deny(code, msg):
 @app.middleware("http")
 async def guard(request: Request, call_next):
     path = request.url.path
+    is_api = path.startswith("/api")
 
-    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+    # send http visitors to https (cloudflare tells us which one they used)
+    if COOKIE_SECURE:
+        proto = request.headers.get("x-forwarded-proto", "").lower()
+        visitor = request.headers.get("cf-visitor", "")
+        if proto == "http" or '"scheme":"http"' in visitor.replace(" ", ""):
+            target = "https://" + PUBLIC_HOST + path
+            if request.url.query:
+                target += "?" + request.url.query
+            return RedirectResponse(target, status_code=308)
+
+    if request.method in WRITE_METHODS:
         # csrf: a browser tells us where the request came from, it has to be us
         origin = request.headers.get("origin")
         if origin and (urlparse(origin).hostname or "").lower() not in OUR_HOSTS:
-            return deny(403, "Blocked.")
+            logging.getLogger("moneysprout").warning("blocked: origin %s", origin[:100])
+            return deny(403, "Blocked: this request came from another site.")
         if request.headers.get("sec-fetch-site") == "cross-site":
-            return deny(403, "Blocked.")
-        # no giant bodies
+            logging.getLogger("moneysprout").warning("blocked: cross-site request")
+            return deny(403, "Blocked: this request came from another site.")
+        if is_api:
+            # a plain html form on another site cannot add this header or send json,
+            # and a script on another site would need cors, which we never allow
+            if request.headers.get("x-requested-with") != "moneysprout":
+                # almost always an old cached app.js, so say so
+                logging.getLogger("moneysprout").warning("blocked: missing x-requested-with on %s", path)
+                return deny(403, "Blocked: your browser is running an old copy of the site. Hard refresh with Ctrl+Shift+R.")
+            cl = request.headers.get("content-length")
+            ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
+            if cl and cl != "0" and ctype != "application/json":
+                return deny(415, "Send json.")
+        # no giant bodies, and no chunked uploads that skip the size check
+        if request.headers.get("transfer-encoding"):
+            return deny(411, "Send a content length.")
         cl = request.headers.get("content-length")
-        if cl and cl.isdigit() and int(cl) > MAX_BODY:
+        if cl and (not cl.isdigit() or int(cl) > MAX_BODY):
             return deny(413, "That is too big.")
 
     # overall limit per visitor so nobody hammers the api (and our yahoo budget)
-    if path.startswith("/api") and security.too_many("api:" + client_ip(request), limit=600, window=60):
-        return deny(429, "Slow down a bit.")
+    if is_api:
+        ip = client_ip(request)
+        if security.too_many("api:" + ip, limit=600, window=60):
+            return deny(429, "Slow down a bit.")
+        # writes get a tighter limit
+        if request.method in WRITE_METHODS and security.too_many("write:" + ip, limit=150, window=60):
+            return deny(429, "Slow down a bit.")
 
     resp = await call_next(request)
 
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "same-origin"
-    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
     resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    resp.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     resp.headers["Content-Security-Policy"] = CSP
     if COOKIE_SECURE:
         resp.headers["Strict-Transport-Security"] = "max-age=31536000"
-    if path.startswith("/api"):
+    if is_api:
         resp.headers["Cache-Control"] = "no-store"
     else:
-        # always recheck the html/js/css so old copies do not stick around
-        resp.headers["Cache-Control"] = "no-cache"
+        # never cache pages or scripts, not in the browser and not at cloudflare,
+        # so an old app.js can never be served against a newer backend
+        resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
@@ -77,6 +120,23 @@ async def guard(request: Request, call_next):
 @app.exception_handler(MarketUnavailable)
 def market_down(request: Request, exc: MarketUnavailable):
     return JSONResponse(status_code=503, content={"detail": "Live market data is not available right now. " + str(exc) + " Try again in a minute."})
+
+# bad input: say what is wrong but never send the person's input (like a password) back
+@app.exception_handler(RequestValidationError)
+def bad_input(request: Request, exc: RequestValidationError):
+    errs = exc.errors()
+    msg = str(errs[0].get("msg", "That does not look right.")) if errs else "That does not look right."
+    if msg.startswith("Value error, "):
+        msg = msg[len("Value error, "):]
+    return JSONResponse(status_code=422, content={"detail": [{"msg": msg}]})
+
+
+# anything unexpected: log it here, show nothing about it
+@app.exception_handler(Exception)
+def oops(request: Request, exc: Exception):
+    logging.getLogger("moneysprout").exception("unhandled error on %s", request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side."})
+
 
 app.include_router(auth.router)
 app.include_router(stocks.router)

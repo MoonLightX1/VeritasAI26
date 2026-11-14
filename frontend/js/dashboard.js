@@ -1,8 +1,9 @@
 // dashboard page
 
-function statCard(label, value, sub, subClass, main) {
+function statCard(label, value, sub, subClass, main, desc) {
   return '<div class="stat' + (main ? ' main' : '') + '"><div class="label">' + label + '</div><div class="value">' + value +
-    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') + '</div>';
+    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') +
+    (desc ? '<div class="desc">' + desc + '</div>' : '') + '</div>';
 }
 
 function stockRow(item) {
@@ -58,10 +59,10 @@ async function load(first) {
 
   const w = d.wallet;
   document.getElementById('wallet').innerHTML =
-    statCard('Portfolio value', money(w.total_value), '', '', true) +
-    statCard('Cash', money(w.cash)) +
-    statCard('All time', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit)) +
-    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change));
+    statCard('Portfolio value', money(w.total_value), '', '', true, 'Cash plus what your shares are worth right now.') +
+    statCard('Cash', money(w.cash), '', '', false, 'Pretend money you have left to spend.') +
+    statCard('All time', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit), false, 'Gain or loss compared to the money you put in.') +
+    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change), false, 'How your shares moved since yesterday\'s close.');
   setWallet(w.cash);
 
   const watch = document.getElementById('watch');

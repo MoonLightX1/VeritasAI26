@@ -2,7 +2,8 @@
 
 async function api(path, options) {
   options = options || {};
-  const init = { method: options.method || 'GET', credentials: 'same-origin', headers: {} };
+  // the server only accepts changes that carry this header, so other sites cannot fake them
+  const init = { method: options.method || 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'moneysprout' } };
   if (options.body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(options.body);
@@ -47,10 +48,19 @@ function pct(n) {
 
 function cls(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : ''); }
 
+// makes text safe to drop into html, including inside "quotes" of an attribute
 function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s === null || s === undefined ? '' : String(s);
-  return d.innerHTML;
+  return (s === null || s === undefined ? '' : String(s))
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// only lets real https links through, anything else becomes a dead link
+function safeUrl(u) {
+  return /^https:\/\//i.test(String(u || '')) ? String(u) : '#';
 }
 
 function shortDate(iso) {

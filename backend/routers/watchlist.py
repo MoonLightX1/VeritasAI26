@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from database import get_db, now
 from deps import current_user
@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
 
 class AddBody(BaseModel):
-    ticker: str
+    ticker: str = Field(max_length=10)
 
 
 def watch_items(db, uid):

@@ -1,24 +1,25 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import DEMO_MODE
 from database import get_db
 from deps import current_user
+import security
 from services import portfolio as pf
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
 class BuyBody(BaseModel):
-    ticker: str
+    ticker: str = Field(max_length=10)
     quantity: Optional[float] = None
     amount: Optional[float] = None
 
 
 class SellBody(BaseModel):
-    ticker: str
+    ticker: str = Field(max_length=10)
     quantity: Optional[float] = None
     sell_all: bool = False
 
@@ -29,6 +30,12 @@ class DepositBody(BaseModel):
 
 class ResetBody(BaseModel):
     confirm: bool = False
+
+
+# trades and deposits are limited per user so nobody scripts thousands of them
+def slow_down(user):
+    if security.too_many("money:" + str(user["id"]), limit=40, window=60):
+        raise HTTPException(429, "Slow down a bit.")
 
 
 # trading needs the parent ok (adults are auto approved)
@@ -57,6 +64,7 @@ def holdings(user=Depends(current_user), db=Depends(get_db)):
 
 @router.post("/buy")
 def buy(body: BuyBody, user=Depends(current_user), db=Depends(get_db)):
+    slow_down(user)
     need_permission(db, user)
     try:
         return pf.buy(db, user["id"], body.ticker, body.quantity, body.amount)
@@ -66,6 +74,7 @@ def buy(body: BuyBody, user=Depends(current_user), db=Depends(get_db)):
 
 @router.post("/sell")
 def sell(body: SellBody, user=Depends(current_user), db=Depends(get_db)):
+    slow_down(user)
     need_permission(db, user)
     try:
         return pf.sell(db, user["id"], body.ticker, body.quantity, body.sell_all)
@@ -76,6 +85,7 @@ def sell(body: SellBody, user=Depends(current_user), db=Depends(get_db)):
 # fake money top up. only in demo mode, and it skips the parent check on purpose
 @router.post("/deposit")
 def deposit(body: DepositBody, user=Depends(current_user), db=Depends(get_db)):
+    slow_down(user)
     if not DEMO_MODE:
         raise HTTPException(403, "Adding pretend money is turned off.")
     try:

@@ -31,6 +31,9 @@ def load(ticker: str, user=Depends(current_user), db=Depends(get_db)):
 def save(ticker: str, body: AnnBody, user=Depends(current_user), db=Depends(get_db)):
     if not market.is_company(ticker):
         raise HTTPException(404, "Unknown company.")
+    # a list of plain objects, not too many of them
+    if len(body.shapes) > 500 or not all(isinstance(x, dict) for x in body.shapes):
+        raise HTTPException(400, "Those drawings do not look right.")
     data = json.dumps(body.shapes)
     if len(data) > MAX_BYTES:
         raise HTTPException(400, "Too many drawings, clear some and try again.")

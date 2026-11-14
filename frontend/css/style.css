@@ -197,6 +197,7 @@ textarea { resize: vertical; min-height: 140px; }
 .stat .label { font-size: var(--t-sm); color: var(--muted); }
 .stat .value { font-size: var(--t-xl); font-weight: 600; }
 .stat .sub { font-size: var(--t-sm); }
+.stat .desc { font-size: var(--t-sm); color: var(--muted); margin-top: 6px; opacity: .8; }
 
 /* top summary row, the first number is the main one */
 .summary { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--s-4); align-items: stretch; }

@@ -14,10 +14,13 @@ START_CASH_CENTS = 1000000
 
 SESSION_HOURS = 12
 REMEMBER_DAYS = 30
-COOKIE_NAME = "ms_session"
 
 # the site is served over https through the cloudflare tunnel, so cookies are secure
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
+
+# the __Host- prefix makes browsers refuse the cookie unless it is secure, on this exact host, with no domain.
+# it needs https, so plain http local testing (COOKIE_SECURE=false) uses the normal name
+COOKIE_NAME = "__Host-ms_session" if COOKIE_SECURE else "ms_session"
 
 # only these hostnames are allowed to reach the app (comma separated)
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "moneysprout.renengine.com")

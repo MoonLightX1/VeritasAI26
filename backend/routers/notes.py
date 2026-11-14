@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from database import get_db, now
@@ -9,11 +9,13 @@ from services import market
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
+MAX_NOTES = 500
+
 
 class NoteBody(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     content: str = Field(default="", max_length=10000)
-    ticker: Optional[str] = None
+    ticker: Optional[str] = Field(default=None, max_length=10)
 
 
 def clean_ticker(t):
@@ -31,7 +33,7 @@ def as_dict(r):
 
 
 @router.get("")
-def list_notes(q: str = "", ticker: str = "", user=Depends(current_user), db=Depends(get_db)):
+def list_notes(q: str = Query("", max_length=100), ticker: str = Query("", max_length=10), user=Depends(current_user), db=Depends(get_db)):
     sql = "SELECT * FROM notes WHERE user_id = ?"
     args = [user["id"]]
     if ticker:
@@ -48,6 +50,12 @@ def list_notes(q: str = "", ticker: str = "", user=Depends(current_user), db=Dep
 
 @router.post("")
 def create(body: NoteBody, user=Depends(current_user), db=Depends(get_db)):
+    if not body.title.strip():
+        raise HTTPException(400, "Give your note a title first.")
+    # stop people stuffing the database with notes
+    n = db.execute("SELECT COUNT(*) c FROM notes WHERE user_id = ?", (user["id"],)).fetchone()["c"]
+    if n >= MAX_NOTES:
+        raise HTTPException(400, "You hit the limit of %d notes. Delete some first." % MAX_NOTES)
     t = clean_ticker(body.ticker)
     cur = db.execute(
         "INSERT INTO notes (user_id, ticker, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -60,6 +68,8 @@ def create(body: NoteBody, user=Depends(current_user), db=Depends(get_db)):
 
 @router.put("/{note_id}")
 def update(note_id: int, body: NoteBody, user=Depends(current_user), db=Depends(get_db)):
+    if not body.title.strip():
+        raise HTTPException(400, "Give your note a title first.")
     t = clean_ticker(body.ticker)
     # user_id check so nobody can edit someone elses note
     cur = db.execute(

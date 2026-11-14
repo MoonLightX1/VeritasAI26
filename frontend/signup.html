@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign up - MoneySprout</title>
-  <script src="js/theme.js?v=9"></script>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <script src="js/theme.js?v=10"></script>
+  <link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
   <div class="pub-nav">
@@ -87,12 +87,13 @@
         <div class="two-col">
           <div class="field">
             <label for="pw">Password</label>
-            <input type="password" id="pw" autocomplete="new-password">
+            <input type="password" id="pw" autocomplete="new-password" maxlength="100">
+            <div class="hint muted">At least 10 characters, with a letter and a number.</div>
             <div class="hint muted">8+ characters, a letter and a number.</div>
           </div>
           <div class="field">
             <label for="pw2">Confirm password</label>
-            <input type="password" id="pw2" autocomplete="new-password">
+            <input type="password" id="pw2" autocomplete="new-password" maxlength="100">
             <div class="hint" id="pwHint"></div>
           </div>
         </div>
@@ -194,7 +195,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=9"></script>
-  <script src="js/signup.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
+  <script src="js/signup.js?v=10"></script>
 </body>
 </html>

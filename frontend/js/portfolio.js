@@ -1,8 +1,9 @@
 // portfolio page
 
-function card(label, value, sub, subClass, main) {
+function card(label, value, sub, subClass, main, desc) {
   return '<div class="stat' + (main ? ' main' : '') + '"><div class="label">' + label + '</div><div class="value">' + value +
-    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') + '</div>';
+    '</div>' + (sub ? '<div class="sub ' + (subClass || 'muted') + '">' + sub + '</div>' : '') +
+    (desc ? '<div class="desc">' + desc + '</div>' : '') + '</div>';
 }
 
 // adds the fake money, then reloads the numbers
@@ -51,10 +52,10 @@ async function load() {
     const p = await api('/api/portfolio');
     setWallet(p.cash);
     document.getElementById('summary').innerHTML =
-      card('Portfolio value', money(p.total_value), '', '', true) +
-      card('Cash', money(p.cash)) +
-      card('Invested', money(p.invested)) +
-      card('Profit / loss', signedMoney(p.profit), pct(p.profit_pct), cls(p.profit));
+      card('Portfolio value', money(p.total_value), '', '', true, 'Cash plus what your shares are worth right now.') +
+      card('Cash', money(p.cash), '', '', false, 'Pretend money you have left to spend.') +
+      card('Invested', money(p.invested), '', '', false, 'What you paid for the shares you still hold.') +
+      card('Profit / loss', signedMoney(p.profit), pct(p.profit_pct), cls(p.profit), false, 'Gain or loss compared to the money you put in.');
 
     const hb = document.getElementById('holdings');
     if (!p.holdings.length) {

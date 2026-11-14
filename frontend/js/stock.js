@@ -1,7 +1,8 @@
 // stock page: header, chart, drawing toolbar, buy and sell
 
 const params = new URLSearchParams(location.search);
-const TICKER = (params.get('t') || '').toUpperCase();
+// tickers are just letters, anything else in the url gets thrown away
+const TICKER = /^[A-Za-z]{1,6}$/.test(params.get('t') || '') ? params.get('t').toUpperCase() : '';
 const RANGES = [['1D', '1D'], ['1W', '1W'], ['1M', '1M'], ['3M', '3M'],
   ['6M', '6M'], ['1Y', '1Y'], ['5Y', '5Y'], ['MAX', 'Max']];
 const TOOLS = [['none', 'Cursor'], ['pen', 'Pencil'], ['line', 'Line'], ['hline', 'Price line'],
@@ -11,7 +12,6 @@ const TOOLS = [['none', 'Cursor'], ['pen', 'Pencil'], ['line', 'Line'], ['hline'
 let chart = null;
 let stock = null;
 let range = '1Y';
-let unsaved = false;
 let loadToken = 0;
 let view = 'actual';      // 'actual' or 'pred', which graph they are looking at
 let predToken = 0;
@@ -129,7 +129,7 @@ function renderSide(p) {
     if (!list.length) return '';
     return '<div class="small ' + cls + '" style="margin-top:6px"><b>' + title + '</b></div><ul class="drivers">' +
       list.map(function (n) {
-        return '<li><a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) + '</a></li>';
+        return '<li><a href="' + esc(safeUrl(n.link)) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) + '</a></li>';
       }).join('') + '</ul>';
   }
   const ai = p.ai || {};
@@ -177,7 +177,7 @@ function renderPredictInfo(p) {
     pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
     (p.news.length
       ? '<ul>' + p.news.map(function (n) {
-          return '<li' + (n.relevant === false ? ' style="opacity:.55"' : '') + (n.note ? ' title="' + esc(n.note) + '"' : '') + '>' + toneBadge(n.score, n.relevant) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
+          return '<li' + (n.relevant === false ? ' style="opacity:.55"' : '') + (n.note ? ' title="' + esc(n.note) + '"' : '') + '>' + toneBadge(n.score, n.relevant) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(safeUrl(n.link)) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
             '</a><span class="src">' + esc(n.publisher) + '</span></li>';
         }).join('') + '</ul>'
       : '<div class="muted small" style="margin-top:6px">No recent news came back, so this follows the price trend only.</div>') +
@@ -280,9 +280,6 @@ function buildTools() {
     '<button class="chip" id="redoBtn">Redo</button>' +
     '<button class="chip" id="clearBtn">Clear all</button>' +
     '<span class="sep"></span>' +
-    '<button class="chip" id="saveBtn">Save drawings</button>' +
-    '<button class="chip" id="loadBtn">Load saved</button>' +
-    '<span class="sep"></span>' +
     '<button class="chip" id="zoomIn">Zoom in</button>' +
     '<button class="chip" id="zoomOut">Zoom out</button>' +
     '<button class="chip" id="zoomReset">Reset zoom</button>' +
@@ -304,11 +301,6 @@ function buildTools() {
     if (!chart.shapes.length) return;
     if (confirm('Remove all drawings on this chart? You can still undo it.')) chart.clearShapes();
   };
-  document.getElementById('saveBtn').onclick = saveShapes;
-  document.getElementById('loadBtn').onclick = function () {
-    if (unsaved && !confirm('You have unsaved drawings. Load the saved ones anyway?')) return;
-    loadShapes(true);
-  };
   document.getElementById('zoomIn').onclick = function () { chart.zoom(1 / 1.4); };
   document.getElementById('zoomOut').onclick = function () { chart.zoom(1.4); };
   document.getElementById('zoomReset').onclick = function () { chart.resetZoom(); };
@@ -319,11 +311,6 @@ function buildTools() {
       'moneysprout-' + stock.ticker + '-' + range + '-' + day + '.png');
     toast('Image downloaded');
   };
-}
-
-function setUnsaved(v) {
-  unsaved = v;
-  document.getElementById('saveState').textContent = v ? ' You have unsaved drawings.' : '';
 }
 
 async function loadHistory() {
@@ -358,29 +345,6 @@ async function liveRefresh() {
     chart.refreshData(h.points);
   } catch (e) {
     // quiet, it will try again in a bit
-  }
-}
-
-async function saveShapes() {
-  const done = busy(document.getElementById('saveBtn'), 'Saving...');
-  try {
-    await api('/api/annotations/' + TICKER, { method: 'PUT', body: { shapes: chart.shapes } });
-    setUnsaved(false);
-    toast('Drawings saved');
-  } catch (e) {
-    toast(e.message, true);
-  }
-  done();
-}
-
-async function loadShapes(showToast) {
-  try {
-    const d = await api('/api/annotations/' + TICKER);
-    chart.setShapes(d.shapes);
-    setUnsaved(false);
-    if (showToast) toast(d.shapes.length ? 'Saved drawings loaded' : 'No saved drawings yet');
-  } catch (e) {
-    toast(e.message, true);
   }
 }
 
@@ -579,10 +543,6 @@ async function refreshAfterTrade() {
 document.getElementById('buyBtn').onclick = function () { openTrade('buy'); };
 document.getElementById('sellBtn').onclick = function () { openTrade('sell'); };
 
-window.addEventListener('beforeunload', function (e) {
-  if (unsaved) { e.preventDefault(); e.returnValue = ''; }
-});
-
 async function start() {
   await initShell('explore');
   document.getElementById('banner').innerHTML = demoBanner();
@@ -603,10 +563,8 @@ async function start() {
   buildRanges();
   buildPredict();
   chart = new StockChart(document.getElementById('chart'));
-  chart.onChange = function () { setUnsaved(true); };
   buildTools();
   chart.setTool('none');
-  await loadShapes(false);
   loadHistory();
   setInterval(liveRefresh, 15000);
 }

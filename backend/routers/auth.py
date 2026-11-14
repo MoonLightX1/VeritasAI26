@@ -26,18 +26,18 @@ class ParentBody(BaseModel):
 class SignupBody(BaseModel):
     first_name: str = Field(min_length=1, max_length=40)
     last_name: str = Field(min_length=1, max_length=40)
-    username: str
-    email: str
-    password: str
-    confirm_password: str
-    birth_date: str
+    username: str = Field(max_length=40)
+    email: str = Field(max_length=120)
+    password: str = Field(max_length=200)
+    confirm_password: str = Field(max_length=200)
+    birth_date: str = Field(max_length=20)
     country: str = Field(min_length=1, max_length=60)
     region: str = Field(min_length=1, max_length=60)
-    grade: str
+    grade: str = Field(max_length=30)
     school: str = Field(default="", max_length=80)
-    experience: str
-    goal: str
-    interests: List[str] = []
+    experience: str = Field(max_length=30)
+    goal: str = Field(max_length=30)
+    interests: List[str] = Field(default=[], max_length=20)
     heard_from: str = Field(default="", max_length=80)
     accept_terms: bool = False
     demo: bool = False
@@ -45,8 +45,8 @@ class SignupBody(BaseModel):
 
 
 class LoginBody(BaseModel):
-    identifier: str
-    password: str
+    identifier: str = Field(max_length=120)
+    password: str = Field(max_length=200)
     remember: bool = False
 
 
@@ -55,29 +55,36 @@ class NameBody(BaseModel):
 
 
 class PasswordBody(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(max_length=200)
+    new_password: str = Field(max_length=200)
 
 
 class DeleteBody(BaseModel):
-    password: str
+    password: str = Field(max_length=200)
 
 
 def set_cookie(response, token, exp, remember):
-    kwargs = dict(httponly=True, samesite="lax", secure=COOKIE_SECURE, path="/")
+    kwargs = dict(httponly=True, samesite="strict", secure=COOKIE_SECURE, path="/")
     if remember:
         # only remember sessions get a real expiry, others die with the browser
         kwargs["expires"] = exp.strftime("%a, %d %b %Y %H:%M:%S GMT")
     response.set_cookie(COOKIE_NAME, token, **kwargs)
 
 
+def kill_cookie(response):
+    # has to repeat the same flags, or the browser may ignore the delete
+    response.delete_cookie(COOKIE_NAME, path="/", secure=COOKIE_SECURE, httponly=True, samesite="strict")
+
+
 def client_ip(request):
-    # cloudflare puts the real visitor ip in this header, the app is only
-    # reachable through the tunnel so it is safe to trust it
-    cf = request.headers.get("cf-connecting-ip")
-    if cf:
-        return cf.strip()
-    return request.client.host if request.client else "unknown"
+    peer = request.client.host if request.client else "unknown"
+    # cloudflare puts the real visitor ip in this header. only believe it when the request
+    # came from the tunnel on this same machine, otherwise anyone could fake it
+    if peer in ("127.0.0.1", "::1"):
+        cf = request.headers.get("cf-connecting-ip")
+        if cf and len(cf) < 64:
+            return cf.strip()
+    return peer
 
 
 @router.get("/config")
@@ -131,7 +138,7 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
         raise HTTPException(400, "That username is taken.")
     if not security.EMAIL_RE.match(email) or len(email) > 120:
         raise HTTPException(400, "That email does not look right.")
-    problem = security.password_problem(body.password)
+    problem = security.password_problem(body.password, username)
     if problem:
         raise HTTPException(400, problem)
     if body.password != body.confirm_password:
@@ -212,9 +219,9 @@ def login(body: LoginBody, request: Request, response: Response, db=Depends(get_
 def logout(request: Request, response: Response, db=Depends(get_db)):
     token = request.cookies.get(COOKIE_NAME)
     if token:
-        db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        db.execute("DELETE FROM sessions WHERE token = ?", (security.hash_token(token),))
         db.commit()
-    response.delete_cookie(COOKIE_NAME, path="/")
+    kill_cookie(response)
     return {"ok": True}
 
 
@@ -227,7 +234,10 @@ def me(user=Depends(current_user), db=Depends(get_db)):
 
 @router.put("/display-name")
 def display_name(body: NameBody, user=Depends(current_user), db=Depends(get_db)):
-    db.execute("UPDATE users SET display_name = ? WHERE id = ?", (body.display_name.strip(), user["id"]))
+    name = body.display_name.strip()
+    if not name:
+        raise HTTPException(400, "Name cannot be empty.")
+    db.execute("UPDATE users SET display_name = ? WHERE id = ?", (name, user["id"]))
     db.commit()
     return {"ok": True}
 
@@ -238,14 +248,14 @@ def change_password(body: PasswordBody, request: Request, user=Depends(current_u
         raise HTTPException(429, "Too many tries, wait a few minutes.")
     if not security.check_password(body.current_password, user["password_hash"]):
         raise HTTPException(400, "Current password is wrong.")
-    problem = security.password_problem(body.new_password)
+    problem = security.password_problem(body.new_password, user["username"])
     if problem:
         raise HTTPException(400, problem)
     db.execute(
         "UPDATE users SET password_hash = ? WHERE id = ?", (security.hash_password(body.new_password), user["id"])
     )
     # log out every other device, keep this one
-    db.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], request.cookies.get(COOKIE_NAME, "")))
+    db.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], security.hash_token(request.cookies.get(COOKIE_NAME, ""))))
     db.commit()
     return {"ok": True}
 
@@ -258,5 +268,5 @@ def delete_account(body: DeleteBody, response: Response, user=Depends(current_us
         raise HTTPException(400, "Password is wrong.")
     db.execute("DELETE FROM users WHERE id = ?", (user["id"],))
     db.commit()
-    response.delete_cookie(COOKIE_NAME, path="/")
+    kill_cookie(response)
     return {"ok": True}

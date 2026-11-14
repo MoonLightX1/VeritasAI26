@@ -1,7 +1,7 @@
 # cloudflared tunnel config for moneysprout.renengine.com
 # fill in the two things marked CHANGE after you run the setup steps in the README
 
-tunnel: BZ920F3sbirnBEgzGrsKcBQUToO4WNLzlEyS+dW8ark=
+tunnel: 905f2970-f61b-4848-b6a0-1406e4c10fa8
 credentials-file: C:\Users\nicko\.cloudflared\905f2970-f61b-4848-b6a0-1406e4c10fa8.json
 
 ingress:

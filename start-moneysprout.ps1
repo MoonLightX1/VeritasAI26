@@ -24,7 +24,7 @@ Write-Host "Starting app..."
 # bound to loopback only, the tunnel is how people reach it
 $app = Start-Process -PassThru -NoNewWindow -WorkingDirectory "$Root\backend" `
     -FilePath "$Root\venv\Scripts\python.exe" `
-    -ArgumentList "-m","uvicorn","main:app","--host","127.0.0.1","--port","8000","--proxy-headers","--forwarded-allow-ips","127.0.0.1"
+    -ArgumentList "-m","uvicorn","main:app","--host","127.0.0.1","--port","8000","--proxy-headers","--forwarded-allow-ips","127.0.0.1","--no-server-header"
 
 Start-Sleep -Seconds 2
 
