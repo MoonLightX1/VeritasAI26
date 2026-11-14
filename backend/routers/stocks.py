@@ -1,0 +1,57 @@
+from fastapi import APIRouter, Depends, HTTPException
+
+from database import get_db, now
+from deps import current_user
+from services import market
+
+router = APIRouter(prefix="/api/stocks", tags=["stocks"])
+
+RANGES = ["1D", "1W", "1M", "3M", "6M", "1Y", "5Y", "MAX"]
+
+
+def must_exist(ticker):
+    if not market.is_company(ticker):
+        raise HTTPException(404, "We could not find that company.")
+    return ticker.upper()
+
+
+@router.get("/search")
+def search(q: str = "", user=Depends(current_user)):
+    return {"results": market.search(q[:50])}
+
+
+@router.get("/{ticker}")
+def detail(ticker: str, user=Depends(current_user), db=Depends(get_db)):
+    t = must_exist(ticker)
+    # remember that they looked at it
+    db.execute(
+        "INSERT INTO viewed (user_id, ticker, viewed_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id, ticker) DO UPDATE SET viewed_at = excluded.viewed_at",
+        (user["id"], t, now()),
+    )
+    db.commit()
+    data = market.with_quote(t)
+    row = db.execute("SELECT 1 FROM watchlist WHERE user_id = ? AND ticker = ?", (user["id"], t)).fetchone()
+    data["watching"] = row is not None
+    held = db.execute("SELECT quantity FROM holdings WHERE user_id = ? AND ticker = ?", (user["id"], t)).fetchone()
+    data["shares_owned"] = held["quantity"] if held else 0
+    return data
+
+
+@router.get("/{ticker}/quote")
+def get_quote(ticker: str, user=Depends(current_user)):
+    return market.quote(must_exist(ticker))
+
+
+@router.get("/{ticker}/history")
+def get_history(ticker: str, range: str = "1Y", user=Depends(current_user)):
+    t = must_exist(ticker)
+    if range not in RANGES:
+        raise HTTPException(400, "Bad range.")
+    return {
+        "ticker": t,
+        "range": range,
+        "intraday": range in ("1D", "1W"),
+        "source": "demo",
+        "points": market.history(t, range),
+    }

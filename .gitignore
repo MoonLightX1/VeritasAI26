@@ -1,0 +1,25 @@
+# python junk
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+
+# secrets and local db
+.env
+*.db
+*.sqlite
+*.sqlite3
+
+# editors and os stuff
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+
+# the copy the ps1 script makes
+MoneySprout-copy/

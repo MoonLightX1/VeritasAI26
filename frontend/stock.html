@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Company - MoneySprout</title>
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="page" class="hidden">
+    <div id="banner"></div>
+
+    <div class="stock-head">
+      <div class="name" id="head"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn light" id="watchBtn">Add to watchlist</button>
+        <a class="btn light" id="noteLink" href="notes.html">Write a note</a>
+        <button class="btn" id="buyBtn">Buy</button>
+        <button class="btn light" id="sellBtn">Sell</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ranges" id="ranges"></div>
+
+      <div class="tools" id="tools"></div>
+
+      <div class="chart-box">
+        <canvas id="chart"></canvas>
+        <div class="chart-msg" id="chartMsg">Loading chart...</div>
+      </div>
+      <p class="muted small" style="margin:8px 0 0">
+        Tip: with the Cursor tool, drag to pan and scroll to zoom. Pick a drawing tool to draw on the chart. Drawings stay with the dates and prices you drew them on.
+        <span id="saveState"></span>
+      </p>
+    </div>
+
+    <div class="grid two" style="margin-top:16px">
+      <div class="card">
+        <h2>About this company</h2>
+        <p id="desc"></p>
+        <table>
+          <tbody id="facts"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Reading the chart</h2>
+        <p class="muted">The green or red line shows the price over the time you picked. The bars at the bottom show volume, which is how many shares were traded in that period.</p>
+        <p class="muted">A price going up does not mean it will keep going up. Prices move for many reasons and nobody can predict them perfectly.</p>
+        <p class="muted small">All prices here are simulated demo data, not real market prices.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalHost"></div>
+
+  <script src="js/app.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/stock.js"></script>
+</body>
+</html>

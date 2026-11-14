@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign up - MoneySprout</title>
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="pub-nav">
+    <a class="brand" href="index.html">Money<span>Sprout</span></a>
+    <div class="right-side"><span id="themeSlot"></span></div>
+  </div>
+
+  <div class="auth-wrap wide">
+    <div class="card">
+      <h1 id="title">Create your account</h1>
+      <p class="muted" id="intro">You get $10,000 of pretend money to practice with.</p>
+      <div id="demoNote" class="banner hidden">
+        <b>Demo account.</b> A demo account is a normal account that is marked as a demo. You still have to fill in everything below, including parent or guardian info, even if you are 18 or older.
+      </div>
+      <div id="err" class="banner err hidden"></div>
+
+      <form id="form" novalidate>
+
+        <div class="form-section" style="border-top:none;margin-top:10px;padding-top:0">
+          <h3>About you</h3>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="first">First name</label>
+            <input type="text" id="first" maxlength="40" autocomplete="given-name">
+          </div>
+          <div class="field">
+            <label for="last">Last name</label>
+            <input type="text" id="last" maxlength="40" autocomplete="family-name">
+          </div>
+        </div>
+        <div class="field">
+          <label for="birth">Birthday</label>
+          <input type="date" id="birth" autocomplete="bday">
+          <div class="hint muted" id="birthHint">We use this to work out your age range.</div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="country">Country</label>
+            <input type="text" id="country" maxlength="60" autocomplete="country-name">
+          </div>
+          <div class="field">
+            <label for="region">State or region</label>
+            <input type="text" id="region" maxlength="60" autocomplete="address-level1">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="grade">School level</label>
+            <select id="grade">
+              <option value="">Choose one</option>
+              <option value="elementary">Elementary school</option>
+              <option value="middle_school">Middle school</option>
+              <option value="high_school">High school</option>
+              <option value="college">College</option>
+              <option value="graduated">Finished school</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="school">School name (optional)</label>
+            <input type="text" id="school" maxlength="80">
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Your login</h3>
+        </div>
+        <div class="field">
+          <label for="username">Username</label>
+          <input type="text" id="username" maxlength="20" autocomplete="username">
+          <div class="hint" id="userHint"></div>
+        </div>
+        <div class="field">
+          <label for="email">Your email</label>
+          <input type="email" id="email" autocomplete="email">
+          <div class="hint" id="emailHint"></div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="pw">Password</label>
+            <input type="password" id="pw" autocomplete="new-password">
+            <div class="hint muted">8+ characters, a letter and a number.</div>
+          </div>
+          <div class="field">
+            <label for="pw2">Confirm password</label>
+            <input type="password" id="pw2" autocomplete="new-password">
+            <div class="hint" id="pwHint"></div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>About investing</h3>
+          <p class="muted small">Helps us know where to start you off. No wrong answers.</p>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="exp">How much do you know about stocks?</label>
+            <select id="exp">
+              <option value="">Choose one</option>
+              <option value="none">Nothing yet</option>
+              <option value="a_little">A little</option>
+              <option value="some">Some</option>
+              <option value="lots">A lot</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="goal">Main goal</label>
+            <select id="goal">
+              <option value="">Choose one</option>
+              <option value="learn_basics">Learn the basics</option>
+              <option value="school_project">School project</option>
+              <option value="save_for_future">Get ready to invest later</option>
+              <option value="for_fun">Just for fun</option>
+              <option value="teach_others">Teach someone else</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>What are you into? (pick at least one)</label>
+          <div class="checks" id="interests">
+            <div class="checkrow"><input type="checkbox" id="i_tech" value="tech"><label for="i_tech">Tech</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_gaming" value="gaming"><label for="i_gaming">Gaming</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_sports" value="sports"><label for="i_sports">Sports</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_food" value="food"><label for="i_food">Food</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_fashion" value="fashion"><label for="i_fashion">Fashion</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_cars" value="cars"><label for="i_cars">Cars</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_entertainment" value="entertainment"><label for="i_entertainment">Movies and music</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_energy" value="energy"><label for="i_energy">Energy</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_health" value="health"><label for="i_health">Health</label></div>
+            <div class="checkrow"><input type="checkbox" id="i_other" value="other"><label for="i_other">Something else</label></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="heard">How did you hear about us? (optional)</label>
+          <input type="text" id="heard" maxlength="80">
+        </div>
+
+        <div id="parentBox" class="hidden">
+          <div class="form-section">
+            <h3>Parent or guardian</h3>
+            <p class="muted small" id="parentWhy">You are under 18, so we need a parent or guardian on your account. They need to be okay with you using MoneySprout.</p>
+          </div>
+          <div class="field">
+            <label for="pname">Their full name</label>
+            <input type="text" id="pname" maxlength="80" autocomplete="off">
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label for="prel">How are they related to you?</label>
+              <select id="prel">
+                <option value="">Choose one</option>
+                <option value="mother">Mother</option>
+                <option value="father">Father</option>
+                <option value="guardian">Legal guardian</option>
+                <option value="grandparent">Grandparent</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pphone">Their phone number</label>
+              <input type="tel" id="pphone" maxlength="30" autocomplete="off">
+            </div>
+          </div>
+          <div class="field">
+            <label for="pemail">Their email</label>
+            <input type="email" id="pemail" autocomplete="off">
+            <div class="hint" id="pemailHint"></div>
+          </div>
+          <div class="checkrow">
+            <input type="checkbox" id="pconsent">
+            <label for="pconsent">My parent or guardian knows I am making this account and is okay with it.</label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="checkrow">
+            <input type="checkbox" id="terms">
+            <label for="terms">I understand MoneySprout is a practice site. It uses pretend money and simulated prices, and it is not financial advice.</label>
+          </div>
+        </div>
+
+        <button class="btn block lg" id="submit" type="submit">Create account</button>
+      </form>
+      <p class="small muted" style="margin-top:14px;text-align:center">Already have an account? <a href="login.html">Log in</a></p>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/signup.js"></script>
+</body>
+</html>

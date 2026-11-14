@@ -1,0 +1,352 @@
+// stock page: header, chart, drawing toolbar, buy and sell
+
+const params = new URLSearchParams(location.search);
+const TICKER = (params.get('t') || '').toUpperCase();
+const RANGES = [['1D', '1 Day'], ['1W', '1 Week'], ['1M', '1 Month'], ['3M', '3 Months'],
+  ['6M', '6 Months'], ['1Y', '1 Year'], ['5Y', '5 Years'], ['MAX', 'Max']];
+const TOOLS = [['none', 'Cursor'], ['pen', 'Pencil'], ['line', 'Line'], ['hline', 'Price line'],
+  ['vline', 'Date line'], ['arrow', 'Arrow'], ['rect', 'Rectangle'], ['circle', 'Circle'],
+  ['text', 'Text'], ['eraser', 'Eraser']];
+
+let chart = null;
+let stock = null;
+let range = '1Y';
+let unsaved = false;
+let loadToken = 0;
+
+function buildRanges() {
+  const box = document.getElementById('ranges');
+  box.innerHTML = RANGES.map(function (r) {
+    return '<button class="chip' + (r[0] === range ? ' on' : '') + '" data-r="' + r[0] + '">' + r[1] + '</button>';
+  }).join('');
+  box.onclick = function (e) {
+    const r = e.target.dataset.r;
+    if (!r || r === range) return;
+    range = r;
+    buildRanges();
+    loadHistory();
+  };
+}
+
+function buildTools() {
+  const box = document.getElementById('tools');
+  box.innerHTML =
+    TOOLS.map(function (t) {
+      return '<button class="chip' + (t[0] === 'none' ? ' on' : '') + '" data-tool="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') +
+    '<span class="sep"></span>' +
+    '<input type="color" id="colorPick" value="#2563eb" title="Drawing color">' +
+    '<span class="sep"></span>' +
+    '<button class="chip" id="undoBtn">Undo</button>' +
+    '<button class="chip" id="redoBtn">Redo</button>' +
+    '<button class="chip" id="clearBtn">Clear all</button>' +
+    '<span class="sep"></span>' +
+    '<button class="chip" id="saveBtn">Save drawings</button>' +
+    '<button class="chip" id="loadBtn">Load saved</button>' +
+    '<span class="sep"></span>' +
+    '<button class="chip" id="zoomIn">Zoom in</button>' +
+    '<button class="chip" id="zoomOut">Zoom out</button>' +
+    '<button class="chip" id="zoomReset">Reset zoom</button>' +
+    '<span class="sep"></span>' +
+    '<button class="chip" id="imgBtn">Download image</button>';
+
+  box.addEventListener('click', function (e) {
+    const t = e.target.dataset.tool;
+    if (t === undefined) return;
+    chart.setTool(t);
+    box.querySelectorAll('[data-tool]').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.tool === t);
+    });
+  });
+  document.getElementById('colorPick').oninput = function () { chart.color = this.value; };
+  document.getElementById('undoBtn').onclick = function () { chart.undo(); };
+  document.getElementById('redoBtn').onclick = function () { chart.redo(); };
+  document.getElementById('clearBtn').onclick = function () {
+    if (!chart.shapes.length) return;
+    if (confirm('Remove all drawings on this chart? You can still undo it.')) chart.clearShapes();
+  };
+  document.getElementById('saveBtn').onclick = saveShapes;
+  document.getElementById('loadBtn').onclick = function () {
+    if (unsaved && !confirm('You have unsaved drawings. Load the saved ones anyway?')) return;
+    loadShapes(true);
+  };
+  document.getElementById('zoomIn').onclick = function () { chart.zoom(1 / 1.4); };
+  document.getElementById('zoomOut').onclick = function () { chart.zoom(1.4); };
+  document.getElementById('zoomReset').onclick = function () { chart.resetZoom(); };
+  document.getElementById('imgBtn').onclick = function () {
+    if (!chart.data.length) { toast('Chart is still loading.', true); return; }
+    const day = new Date().toISOString().slice(0, 10);
+    chart.toPNG(stock.name + ' (' + stock.ticker + ')', 'Range: ' + range + '  |  Latest close ' + money(stock.quote.price),
+      'moneysprout-' + stock.ticker + '-' + range + '-' + day + '.png');
+    toast('Image downloaded');
+  };
+}
+
+function setUnsaved(v) {
+  unsaved = v;
+  document.getElementById('saveState').textContent = v ? ' You have unsaved drawings.' : '';
+}
+
+async function loadHistory() {
+  const msg = document.getElementById('chartMsg');
+  msg.textContent = 'Loading chart...';
+  msg.classList.remove('hidden');
+  const mine = ++loadToken;
+  try {
+    const h = await api('/api/stocks/' + TICKER + '/history?range=' + range);
+    if (mine !== loadToken) return; // they clicked another range already
+    chart.setData(h.points, h.intraday);
+    msg.classList.add('hidden');
+  } catch (e) {
+    msg.textContent = e.message;
+  }
+}
+
+async function saveShapes() {
+  try {
+    await api('/api/annotations/' + TICKER, { method: 'PUT', body: { shapes: chart.shapes } });
+    setUnsaved(false);
+    toast('Drawings saved');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function loadShapes(showToast) {
+  try {
+    const d = await api('/api/annotations/' + TICKER);
+    chart.setShapes(d.shapes);
+    setUnsaved(false);
+    if (showToast) toast(d.shapes.length ? 'Saved drawings loaded' : 'No saved drawings yet');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function renderHead() {
+  const q = stock.quote;
+  document.title = stock.name + ' (' + stock.ticker + ') - MoneySprout';
+  document.getElementById('head').innerHTML = logoHtml(stock.ticker, true) +
+    '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted" style="font-size:18px">' + stock.ticker + '</span></h1>' +
+    '<div class="muted small">' + esc(stock.exchange) + ' &middot; ' + esc(stock.sector) + '</div>' +
+    '<div><span class="price">' + money(q.price) + '</span> <span class="' + cls(q.change) + '"><b>' +
+    signedMoney(q.change) + ' (' + pct(q.change_pct) + ')</b></span></div>' +
+    '<div class="muted small">Simulated demo data, latest close ' + q.as_of + '</div></div>';
+
+  document.getElementById('desc').textContent = stock.description;
+  const facts = [
+    ['Industry', stock.industry],
+    ['Sector', stock.sector],
+    ['Headquarters', stock.headquarters],
+    ['Founded', stock.founded],
+    ['Exchange', stock.exchange],
+    ['Shares you own', stock.shares_owned || 0]
+  ];
+  document.getElementById('facts').innerHTML = facts.map(function (f) {
+    return '<tr><td class="muted">' + f[0] + '</td><td class="right">' + esc(f[1]) + '</td></tr>';
+  }).join('');
+
+  const wb = document.getElementById('watchBtn');
+  wb.textContent = stock.watching ? 'Remove from watchlist' : 'Add to watchlist';
+  document.getElementById('noteLink').href = 'notes.html?t=' + stock.ticker;
+}
+
+document.getElementById('watchBtn').onclick = async function () {
+  try {
+    if (stock.watching) {
+      await api('/api/watchlist/' + TICKER, { method: 'DELETE' });
+      stock.watching = false;
+      toast('Removed from your watchlist');
+    } else {
+      await api('/api/watchlist', { method: 'POST', body: { ticker: TICKER } });
+      stock.watching = true;
+      toast('Added to your watchlist');
+    }
+    renderHead();
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+// buy and sell popup
+
+function openTrade(mode) {
+  const q = stock.quote;
+  const host = document.getElementById('modalHost');
+  let inputMode = 'shares';
+
+  host.innerHTML =
+    '<div class="modal-bg" id="mbg"><div class="modal">' +
+      '<h2>Practice trade: ' + esc(stock.name) + ' (' + stock.ticker + ')</h2>' +
+      '<div class="banner">Pretend money only. No real trade is made.</div>' +
+      '<div class="tabs"><button class="chip" data-m="buy">Buy</button><button class="chip" data-m="sell">Sell</button></div>' +
+      '<div id="modalBody"></div>' +
+    '</div></div>';
+
+  const bg = document.getElementById('mbg');
+  bg.addEventListener('mousedown', function (e) { if (e.target === bg) close(); });
+
+  function close() { host.innerHTML = ''; }
+
+  function renderBody() {
+    host.querySelectorAll('[data-m]').forEach(function (b) { b.classList.toggle('on', b.dataset.m === mode); });
+    const body = document.getElementById('modalBody');
+    const cash = window.ME.wallet.cash;
+    const owned = stock.shares_owned || 0;
+
+    if (mode === 'buy') {
+      body.innerHTML =
+        '<div class="summary-box"><div><span>Latest price</span><b>' + money(q.price) + '</b></div>' +
+        '<div><span>Your virtual cash</span><b>' + money(cash) + '</b></div></div>' +
+        '<div class="tabs"><button class="chip" data-i="shares">By shares</button><button class="chip" data-i="amount">By dollars</button></div>' +
+        '<div class="field"><label id="inLabel"></label><input type="number" id="amt" min="0" step="any"></div>' +
+        '<div class="summary-box" id="calc"></div>' +
+        '<div id="tradeErr" class="banner err hidden"></div>' +
+        '<button class="btn block" id="go">Confirm practice purchase</button>';
+    } else {
+      body.innerHTML =
+        '<div class="summary-box"><div><span>Latest price</span><b>' + money(q.price) + '</b></div>' +
+        '<div><span>Shares you own</span><b>' + owned + '</b></div></div>' +
+        (owned > 0
+          ? '<div class="field"><label>Shares to sell</label><input type="number" id="amt" min="0" step="any">' +
+            '<button class="btn light sm" id="allBtn" style="margin-top:6px">Sell all</button></div>' +
+            '<div class="summary-box" id="calc"></div>' +
+            '<div id="tradeErr" class="banner err hidden"></div>' +
+            '<button class="btn block" id="go">Confirm practice sale</button>'
+          : '<div class="empty">You do not own any shares of this company yet.</div>');
+    }
+    wireBody();
+  }
+
+  function wireBody() {
+    const amt = document.getElementById('amt');
+    if (!amt) return;
+    const calc = document.getElementById('calc');
+    const err = document.getElementById('tradeErr');
+
+    function figure() {
+      const v = parseFloat(amt.value);
+      if (!v || v <= 0) return null;
+      if (mode === 'buy') {
+        const shares = inputMode === 'shares' ? v : Math.floor((v / q.price) * 10000) / 10000;
+        return { shares: shares, total: shares * q.price };
+      }
+      return { shares: v, total: v * q.price };
+    }
+
+    function update() {
+      const f = figure();
+      if (mode === 'buy') {
+        const label = document.getElementById('inLabel');
+        label.textContent = inputMode === 'shares' ? 'Number of shares' : 'Amount of virtual dollars';
+        host.querySelectorAll('[data-i]').forEach(function (b) { b.classList.toggle('on', b.dataset.i === inputMode); });
+      }
+      if (!f) { calc.innerHTML = '<div class="muted">Enter an amount to see a summary.</div>'; return; }
+      if (mode === 'buy') {
+        const left = window.ME.wallet.cash - f.total;
+        calc.innerHTML = '<div><span>Shares</span><b>' + f.shares + '</b></div>' +
+          '<div><span>Estimated total cost</span><b>' + money(f.total) + '</b></div>' +
+          '<div><span>Cash left after</span><b class="' + (left < 0 ? 'down' : '') + '">' + money(left) + '</b></div>';
+      } else {
+        const gain = (q.price - stock.avg_price) * f.shares;
+        calc.innerHTML = '<div><span>Shares</span><b>' + f.shares + '</b></div>' +
+          '<div><span>Estimated proceeds</span><b>' + money(f.total) + '</b></div>' +
+          '<div><span>Estimated profit / loss</span><b class="' + cls(gain) + '">' + signedMoney(gain) + '</b></div>';
+      }
+    }
+    amt.addEventListener('input', update);
+    host.querySelectorAll('[data-i]').forEach(function (b) {
+      b.onclick = function () { inputMode = b.dataset.i; amt.value = ''; update(); };
+    });
+    const all = document.getElementById('allBtn');
+    if (all) all.onclick = function () { amt.value = stock.shares_owned; update(); };
+    update();
+
+    document.getElementById('go').onclick = async function () {
+      const v = parseFloat(amt.value);
+      err.classList.add('hidden');
+      if (!v || v <= 0) {
+        err.textContent = 'Enter an amount first.';
+        err.classList.remove('hidden');
+        return;
+      }
+      const btn = this;
+      btn.disabled = true;
+      try {
+        let r;
+        if (mode === 'buy') {
+          const body = { ticker: TICKER };
+          if (inputMode === 'shares') body.quantity = v; else body.amount = v;
+          r = await api('/api/portfolio/buy', { method: 'POST', body: body });
+          toast('Bought ' + r.quantity + ' shares for ' + money(r.total));
+        } else {
+          const body = { ticker: TICKER, quantity: v };
+          if (stock.shares_owned && Math.abs(v - stock.shares_owned) < 0.00005) body.sell_all = true;
+          r = await api('/api/portfolio/sell', { method: 'POST', body: body });
+          toast('Sold ' + r.quantity + ' shares for ' + money(r.total));
+        }
+        close();
+        await refreshAfterTrade();
+      } catch (e) {
+        let text = e.message;
+        if (e.status === 403) text += ' You can ask in Settings.';
+        err.textContent = text;
+        err.classList.remove('hidden');
+        btn.disabled = false;
+      }
+    };
+  }
+
+  host.querySelectorAll('[data-m]').forEach(function (b) {
+    b.onclick = function () { mode = b.dataset.m; renderBody(); };
+  });
+  renderBody();
+}
+
+async function refreshAfterTrade() {
+  // pull fresh wallet and holdings so the page matches
+  const me = await api('/api/auth/me');
+  window.ME = me;
+  setWallet(me.wallet.cash);
+  const s = await api('/api/stocks/' + TICKER);
+  stock = Object.assign(stock, s);
+  const hold = await api('/api/portfolio/holdings');
+  const mine = hold.holdings.find(function (h) { return h.ticker === TICKER; });
+  stock.avg_price = mine ? mine.avg_price : 0;
+  renderHead();
+}
+
+document.getElementById('buyBtn').onclick = function () { openTrade('buy'); };
+document.getElementById('sellBtn').onclick = function () { openTrade('sell'); };
+
+window.addEventListener('beforeunload', function (e) {
+  if (unsaved) { e.preventDefault(); e.returnValue = ''; }
+});
+
+async function start() {
+  await initShell('explore.html');
+  document.getElementById('banner').innerHTML = demoBanner();
+
+  if (!TICKER) { location.href = 'explore.html'; return; }
+  try {
+    stock = await api('/api/stocks/' + TICKER);
+  } catch (e) {
+    document.getElementById('page').innerHTML = '<div class="banner err">' + esc(e.message) +
+      '</div><a class="btn" href="explore.html">Back to Explore</a>';
+    return;
+  }
+  const hold = await api('/api/portfolio/holdings');
+  const mine = hold.holdings.find(function (h) { return h.ticker === TICKER; });
+  stock.avg_price = mine ? mine.avg_price : 0;
+
+  renderHead();
+  buildRanges();
+  chart = new StockChart(document.getElementById('chart'));
+  chart.onChange = function () { setUnsaved(true); };
+  buildTools();
+  chart.setTool('none');
+  await loadShapes(false);
+  loadHistory();
+}
+
+start();

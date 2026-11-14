@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explore Stocks - MoneySprout</title>
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="page" class="hidden">
+    <h1>Explore stocks</h1>
+    <p class="muted">Search by company name, ticker symbol, or type of business.</p>
+    <div id="banner"></div>
+    <div class="field" style="max-width:480px">
+      <input type="text" id="q" placeholder="Try NVDA, Nike or coffee" autocomplete="off">
+    </div>
+    <div id="count" class="muted small" style="margin-bottom:10px"></div>
+    <div class="grid three" id="results"></div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/explore.js"></script>
+</body>
+</html>

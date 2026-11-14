@@ -1,0 +1,25 @@
+import datetime as dt
+
+from fastapi import Depends, HTTPException, Request
+
+from config import COOKIE_NAME
+from database import get_db
+
+
+# figure out who is logged in from the cookie
+def current_user(request: Request, db=Depends(get_db)):
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="Please log in.")
+    row = db.execute(
+        "SELECT u.*, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?",
+        (token,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Please log in.")
+    exp = dt.datetime.fromisoformat(row["expires_at"].rstrip("Z"))
+    if exp < dt.datetime.utcnow():
+        db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        db.commit()
+        raise HTTPException(status_code=401, detail="Session expired, log in again.")
+    return row
