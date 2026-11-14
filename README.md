@@ -6,3 +6,5 @@ pip install -r requirements.txt
 cloudflared tunnel login cloudflared tunnel create moneysprout cloudflared tunnel route dns moneysprout moneysprout.renengine.com
 
 .\start-moneysprout.ps1
+
+powershell.exe -ExecutionPolicy Bypass -File ".\copy-moneysprout.ps1"

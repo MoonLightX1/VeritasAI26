@@ -331,6 +331,19 @@ td.right, th.right { text-align: right; }
 }
 .chip:hover { background: var(--green-light); }
 .chip.on { background: var(--green); border-color: var(--green); color: var(--on-accent); }
+.predict-bar { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; margin-bottom: var(--s-3); }
+.predict-bar .seg { display: inline-flex; }
+.predict-bar .seg .chip:first-child { border-radius: var(--r-ctl) 0 0 var(--r-ctl); }
+.predict-bar .seg .chip:last-child { border-radius: 0 var(--r-ctl) var(--r-ctl) 0; margin-left: -1px; }
+.predict-info { margin-top: var(--s-3); border-top: 1px solid var(--line); padding-top: var(--s-3); }
+.predict-info .pi-head { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; margin-bottom: var(--s-2); }
+.predict-info ul { list-style: none; margin: var(--s-2) 0 0; padding: 0; }
+.predict-info li { display: flex; gap: var(--s-2); align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); }
+.predict-info li a { color: inherit; }
+.predict-info li .src { color: var(--muted); white-space: nowrap; }
+.tone { display: inline-block; min-width: 3.2em; text-align: center; border-radius: var(--r-ctl); padding: 1px 8px; font-size: var(--t-sm); font-weight: 600; border: 1px solid var(--line); }
+.tone.pos { color: var(--up); border-color: var(--up); }
+.tone.neg { color: var(--down); border-color: var(--down); }
 .chart-box { position: relative; width: 100%; height: 540px; background: var(--card); }
 .chart-box canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .chart-msg {

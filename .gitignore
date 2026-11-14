@@ -27,3 +27,7 @@ MoneySprout-copy/
 # cloudflare secrets
 cloudflare/*.json
 *.pem
+
+# ai model weights (big, not copied or committed)
+# leading / and trailing / so the copy script skips the whole folder
+/backend/model/

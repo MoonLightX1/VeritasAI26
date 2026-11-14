@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from database import get_db, now
 from deps import current_user
-from services import market
+from services import market, predict
+import security
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
 
@@ -59,3 +60,14 @@ def get_history(ticker: str, range: str = "1Y", user=Depends(current_user)):
         "fetched_at": h["fetched_at"],
         "points": h["points"],
     }
+
+
+@router.get("/{ticker}/predict")
+def get_prediction(ticker: str, range: str = "1Y", user=Depends(current_user)):
+    t = must_exist(ticker)
+    if range not in RANGES:
+        raise HTTPException(400, "Bad range.")
+    # news + scoring is heavier than a price fetch, so it gets its own small limit
+    if security.too_many("predict:" + str(user["id"]), limit=30, window=60):
+        raise HTTPException(429, "Slow down a bit.")
+    return predict.predict(t, range)

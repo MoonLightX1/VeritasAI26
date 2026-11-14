@@ -6,6 +6,8 @@ class StockChart {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.data = [];
+    this.realN = 0; // how many of the points are real prices, the rest are predicted
+    this.pred = [];
     this.intraday = false;
     this.tz = 'UTC'; // intraday labels use the exchange timezone
     this.v0 = 0; // first visible index (can be fractional)
@@ -34,6 +36,8 @@ class StockChart {
   // data
 
   setData(points, intraday, tz) {
+    this.pred = [];
+    this.realN = points.length;
     this.data = points;
     this.intraday = intraday;
     this.tz = intraday ? (tz || 'America/New_York') : 'UTC';
@@ -48,13 +52,38 @@ class StockChart {
     const old = this.data.length;
     const atEnd = this.v1 >= old - 1.5;
     const width = this.v1 - this.v0;
-    this.data = points;
-    if (!old || points.length < 2) { this.v0 = 0; this.v1 = Math.max(1, points.length - 1); }
+    // keep the predicted part, minus anything the real prices have caught up with
+    const lastT = points.length ? points[points.length - 1].t : 0;
+    this.pred = this.pred.filter(function (p) { return p.t > lastT; });
+    this.realN = points.length;
+    this.data = points.concat(this.pred);
+    if (!old || points.length < 2) { this.v0 = 0; this.v1 = Math.max(1, this.data.length - 1); }
     else if (atEnd) {
       // stay glued to the newest point
-      this.v1 = points.length - 1;
+      this.v1 = this.data.length - 1;
       this.v0 = Math.max(0, this.v1 - width);
     }
+    this.draw();
+  }
+
+  // predicted points: [{t, c, lo, hi}], drawn after the real prices as a dashed line with a shaded range
+  setPrediction(future) {
+    this.pred = future.map(function (f) { return { t: f.t, c: f.c, lo: f.lo, hi: f.hi, v: 0, p: true }; });
+    this.data = this.data.slice(0, this.realN).concat(this.pred);
+    this.v0 = 0;
+    this.v1 = Math.max(1, this.data.length - 1);
+    this.hover = null;
+    this.draw();
+  }
+
+  // back to the actual graph
+  clearPrediction() {
+    if (!this.pred.length) return;
+    this.pred = [];
+    this.data = this.data.slice(0, this.realN);
+    this.v0 = 0;
+    this.v1 = Math.max(1, this.data.length - 1);
+    this.hover = null;
     this.draw();
   }
 
@@ -136,8 +165,9 @@ class StockChart {
     let min = Infinity, max = -Infinity, vmax = 0;
     for (let i = r[0]; i <= r[1]; i++) {
       const p = this.data[i];
-      if (p.c < min) min = p.c;
-      if (p.c > max) max = p.c;
+      const lo = p.p ? p.lo : p.c, hi = p.p ? p.hi : p.c;
+      if (lo < min) min = lo;
+      if (hi > max) max = hi;
       if (p.v > vmax) vmax = p.v;
     }
     if (!isFinite(min)) { min = 0; max = 1; }
@@ -185,6 +215,7 @@ class StockChart {
     this.drawGrid();
     this.drawVolume();
     this.drawLine();
+    this.drawPrediction();
     this.drawShapes();
     this.drawHover();
   }
@@ -251,8 +282,11 @@ class StockChart {
   drawLine() {
     const ctx = this.ctx;
     const r = this.visibleRange();
+    // the colour and the solid line only look at real prices
+    const realEnd = Math.min(r[1], this.realN - 1);
+    if (realEnd < r[0]) return;
     const first = this.data[r[0]].c;
-    const last = this.data[r[1]].c;
+    const last = this.data[realEnd].c;
     const up = last >= first;
     const col = up ? this.c.up : this.c.down;
 
@@ -262,7 +296,7 @@ class StockChart {
     ctx.clip();
 
     const start = Math.max(0, r[0] - 1);
-    const end = Math.min(this.data.length - 1, r[1] + 1);
+    const end = Math.min(this.realN - 1, r[1] + 1);
 
     ctx.beginPath();
     for (let i = start; i <= end; i++) {
@@ -273,6 +307,59 @@ class StockChart {
     ctx.lineWidth = 1.5;
     ctx.lineJoin = 'round';
     ctx.stroke();
+    ctx.restore();
+  }
+
+  drawPrediction() {
+    if (!this.pred.length) return;
+    const ctx = this.ctx;
+    const a = this.realN - 1; // last real point, the prediction starts from here
+    const b = this.data.length - 1;
+    const startC = this.data[a].c;
+    const endC = this.data[b].c;
+    const col = endC >= startC ? this.c.up : this.c.down;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(this.pad.l, 0, this.pw, this.h);
+    ctx.clip();
+
+    // shaded range, starts as a point and fans out
+    ctx.beginPath();
+    ctx.moveTo(this.xOfIdx(a), this.yOfPrice(startC));
+    for (let i = a + 1; i <= b; i++) ctx.lineTo(this.xOfIdx(i), this.yOfPrice(this.data[i].hi));
+    for (let i = b; i > a; i--) ctx.lineTo(this.xOfIdx(i), this.yOfPrice(this.data[i].lo));
+    ctx.closePath();
+    ctx.fillStyle = this.rgba(col, 0.14);
+    ctx.fill();
+
+    // divider between what happened and what we think will happen
+    const nx = this.xOfIdx(a);
+    ctx.strokeStyle = this.c.muted;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.moveTo(nx, this.pad.t);
+    ctx.lineTo(nx, this.plotBottom);
+    ctx.stroke();
+
+    // dashed predicted line
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath();
+    for (let i = a; i <= b; i++) {
+      const x = this.xOfIdx(i), y = this.yOfPrice(this.data[i].c);
+      if (i === a) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = this.c.muted;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Predicted', Math.min(nx + 6, this.w - this.pad.r - 60), this.pad.t + 12);
     ctx.restore();
   }
 
@@ -302,7 +389,9 @@ class StockChart {
     ctx.fill();
     ctx.stroke();
 
-    const lines = [this.fmtTime(p.t, true), 'Price: $' + p.c.toFixed(2), 'Volume: ' + p.v.toLocaleString('en-US')];
+    const lines = p.p
+      ? [this.fmtTime(p.t, true), 'Predicted: $' + p.c.toFixed(2), 'Likely: $' + p.lo.toFixed(2) + ' - $' + p.hi.toFixed(2)]
+      : [this.fmtTime(p.t, true), 'Price: $' + p.c.toFixed(2), 'Volume: ' + p.v.toLocaleString('en-US')];
     ctx.font = '12px system-ui, sans-serif';
     let bw = 0;
     lines.forEach(function (l) { bw = Math.max(bw, ctx.measureText(l).width); });

@@ -13,6 +13,10 @@ let stock = null;
 let range = '1Y';
 let unsaved = false;
 let loadToken = 0;
+let view = 'actual';      // 'actual' or 'pred', which graph they are looking at
+let predToken = 0;
+const predCache = {};     // range -> { at, data }, so flipping back and forth is instant
+const PRED_FRESH = 5 * 60 * 1000;
 
 function buildRanges() {
   const box = document.getElementById('ranges');
@@ -23,9 +27,89 @@ function buildRanges() {
     const r = e.target.dataset.r;
     if (!r || r === range) return;
     range = r;
+    predToken++;
     buildRanges();
     loadHistory();
   };
+}
+
+function buildPredict() {
+  const box = document.getElementById('predictBar');
+  box.innerHTML =
+    '<span class="seg">' +
+    '<button class="chip' + (view === 'actual' ? ' on' : '') + '" data-v="actual">Actual</button>' +
+    '<button class="chip' + (view === 'pred' ? ' on' : '') + '" data-v="pred">Predicted (news)</button>' +
+    '</span><span class="muted small" id="predState"></span>';
+  box.onclick = function (e) {
+    const v = e.target.dataset.v;
+    if (!v || v === view) return;
+    setView(v);
+  };
+}
+
+function setView(v) {
+  view = v;
+  predToken++;
+  buildPredict();
+  if (v === 'actual') {
+    chart.clearPrediction();
+    document.getElementById('predictInfo').classList.add('hidden');
+  } else {
+    loadPrediction();
+  }
+}
+
+function toneBadge(score) {
+  const c = score >= 0.15 ? 'pos' : score <= -0.15 ? 'neg' : '';
+  const t = (score > 0 ? '+' : '') + score.toFixed(2);
+  return '<span class="tone ' + c + '">' + t + '</span>';
+}
+
+function renderPredictInfo(p) {
+  const s = p.sentiment;
+  const box = document.getElementById('predictInfo');
+  const dir = p.change_pct >= 0 ? 'up' : 'down';
+  box.innerHTML =
+    '<div class="pi-head"><b>News mood:</b> ' + toneBadge(s.score) + ' <b>' + esc(s.label) + '</b>' +
+    '<span class="muted small">from ' + s.articles + ' recent headline' + (s.articles === 1 ? '' : 's') +
+    ' &middot; scored by ' + esc(s.engine) + '</span></div>' +
+    '<div>' + esc(p.why) + ' The dashed line ends around <b>' + money(p.to_price) + '</b> <span class="' + (dir === 'up' ? 'up' : 'down') + '">(' +
+    pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
+    (p.news.length
+      ? '<ul>' + p.news.map(function (n) {
+          return '<li>' + toneBadge(n.score) + '<a href="' + esc(n.link) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
+            '</a><span class="src">' + esc(n.publisher) + '</span></li>';
+        }).join('') + '</ul>'
+      : '<div class="muted small" style="margin-top:6px">No recent news came back, so this follows the price trend only.</div>') +
+    '<p class="muted small" style="margin:8px 0 0">' + esc(p.disclaimer) + '</p>';
+  box.classList.remove('hidden');
+}
+
+async function loadPrediction() {
+  if (view !== 'pred') return;
+  const mine = ++predToken;
+  const state = document.getElementById('predState');
+  const hit = predCache[range];
+  let p;
+  if (hit && Date.now() - hit.at < PRED_FRESH) {
+    p = hit.data;
+  } else {
+    state.textContent = 'Reading the news...';
+    try {
+      p = await api('/api/stocks/' + TICKER + '/predict?range=' + range);
+      predCache[range] = { at: Date.now(), data: p };
+    } catch (e) {
+      if (mine !== predToken) return;
+      toast(e.message, true);
+      setView('actual');
+      return;
+    }
+  }
+  // they switched view or range while we waited
+  if (mine !== predToken || view !== 'pred') return;
+  state.textContent = '';
+  chart.setPrediction(p.points);
+  renderPredictInfo(p);
 }
 
 function buildTools() {
@@ -97,6 +181,7 @@ async function loadHistory() {
     if (mine !== loadToken) return; // they clicked another range already
     chart.setData(h.points, h.intraday, h.timezone);
     msg.classList.add('hidden');
+    if (view === 'pred') loadPrediction();
   } catch (e) {
     // show the error and a button so they can try again
     msg.innerHTML = '<div style="text-align:center;padding:0 16px"><div>' + esc(e.message) +
@@ -361,6 +446,7 @@ async function start() {
 
   renderHead();
   buildRanges();
+  buildPredict();
   chart = new StockChart(document.getElementById('chart'));
   chart.onChange = function () { setUnsaved(true); };
   buildTools();
