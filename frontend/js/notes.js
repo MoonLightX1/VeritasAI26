@@ -96,7 +96,7 @@ function renderList() {
     const snippet = n.content.replace(/\s+/g, ' ').trim().slice(0, 90);
     return '<div class="note-item' + (n.id === currentId ? ' on' : '') + '" data-id="' + n.id + '" tabindex="0">' +
       '<div class="note-item-top"><b>' + esc(n.title) + '</b>' +
-      (n.ticker ? '<span class="pill">' + esc(n.ticker) + '</span>' : '') + '</div>' +
+      (n.ticker ? '<span class="muted small">' + esc(n.ticker) + '</span>' : '') + '</div>' +
       '<div class="muted small">' + dayLabel(n.updated_at) + '</div>' +
       '<div class="muted small note-snip">' + (esc(snippet) || 'Empty note') + '</div></div>';
   }).join('');

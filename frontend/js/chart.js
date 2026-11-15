@@ -222,7 +222,7 @@ class StockChart {
 
   drawGrid() {
     const ctx = this.ctx;
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = '11px "Inter Variable", system-ui, sans-serif';
     ctx.fillStyle = this.c.muted;
     ctx.strokeStyle = this.c.line;
     ctx.lineWidth = 1;
@@ -357,7 +357,7 @@ class StockChart {
     ctx.setLineDash([]);
 
     ctx.fillStyle = this.c.muted;
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = '11px "Inter Variable", system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('Predicted', Math.min(nx + 6, this.w - this.pad.r - 60), this.pad.t + 12);
     ctx.restore();
@@ -392,7 +392,7 @@ class StockChart {
     const lines = p.p
       ? [this.fmtTime(p.t, true), 'Predicted: $' + p.c.toFixed(2), 'Likely: $' + p.lo.toFixed(2) + ' - $' + p.hi.toFixed(2)]
       : [this.fmtTime(p.t, true), 'Price: $' + p.c.toFixed(2), 'Volume: ' + p.v.toLocaleString('en-US')];
-    ctx.font = '12px system-ui, sans-serif';
+    ctx.font = '12px "Inter Variable", system-ui, sans-serif';
     let bw = 0;
     lines.forEach(function (l) { bw = Math.max(bw, ctx.measureText(l).width); });
     bw += 16;
@@ -431,14 +431,14 @@ class StockChart {
     o.fillRect(0, 0, out.width, out.height);
     o.textBaseline = 'alphabetic';
     o.fillStyle = this.c.text;
-    o.font = 'bold ' + 20 * dpr + 'px system-ui, sans-serif';
+    o.font = 'bold ' + 20 * dpr + 'px "Inter Variable", system-ui, sans-serif';
     o.fillText(title, 14 * dpr, 28 * dpr);
     o.fillStyle = this.c.muted;
-    o.font = 13 * dpr + 'px system-ui, sans-serif';
+    o.font = 13 * dpr + 'px "Inter Variable", system-ui, sans-serif';
     o.fillText(subtitle, 14 * dpr, 46 * dpr);
     o.drawImage(src, 0, head);
     o.fillStyle = this.c.muted;
-    o.font = 11 * dpr + 'px system-ui, sans-serif';
+    o.font = 11 * dpr + 'px "Inter Variable", system-ui, sans-serif';
     o.fillText('MoneySprout, data from Yahoo Finance, may be delayed. Practice only.', 14 * dpr, out.height - 10 * dpr);
     out.toBlob(function (blob) {
       if (!blob) return;
@@ -506,7 +506,7 @@ class StockChart {
       ctx.lineTo(this.w - this.pad.r, y);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = '11px system-ui, sans-serif';
+      ctx.font = '11px "Inter Variable", system-ui, sans-serif';
       ctx.fillText('$' + s.p.toFixed(2), this.pad.l + 4, y - 4);
     } else if (s.type === 'vline') {
       const x = this.xOfTime(s.t);
@@ -516,7 +516,7 @@ class StockChart {
       ctx.lineTo(x, this.plotBottom);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = '11px system-ui, sans-serif';
+      ctx.font = '11px "Inter Variable", system-ui, sans-serif';
       ctx.save();
       ctx.translate(x + 4, this.pad.t + 6);
       ctx.fillText(this.fmtTime(s.t), 0, 10);
@@ -532,7 +532,7 @@ class StockChart {
       ctx.stroke();
     } else if (s.type === 'text') {
       const a = this.toPx(s.a);
-      ctx.font = 'bold 14px system-ui, sans-serif';
+      ctx.font = 'bold 14px "Inter Variable", system-ui, sans-serif';
       ctx.fillText(s.text, a[0], a[1]);
     }
   }

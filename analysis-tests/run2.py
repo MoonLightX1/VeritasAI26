@@ -3,7 +3,7 @@ import os; sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__fil
 from services import predict as P
 from headlines import H
 
-# ---- ablations on headline set
+# turn things off one at a time on the headline set
 def pred_of(t, use_judge=True, use_neg=True):
     s=P._lexicon_score(t)
     if use_judge:
@@ -23,7 +23,7 @@ def wilson(k,n,z=1.96):
 print("wilson 55/63",wilson(55,63))
 print("wilson good/bad 37/40",wilson(37,40))
 
-# ---- forecast calibration on synthetic random walks
+# check the forecast range on fake random stocks
 def make_points(rets, start=100.0):
     pts=[]; p=start; t=1_700_000_000_000
     pts.append({"t":t,"c":p})

@@ -12,7 +12,7 @@ async function api(path, options) {
   try {
     res = await fetch(path, init);
   } catch (e) {
-    throw new Error('Cannot reach the server. Is it running?');
+    throw new Error('Cannot reach the server right now. Is it running?');
   }
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
@@ -21,7 +21,7 @@ async function api(path, options) {
     if (res.status === 401 && !options.noRedirect) {
       location.href = 'login';
     }
-    let msg = 'Something went wrong.';
+    let msg = 'Oops, something went wrong.';
     if (data && typeof data.detail === 'string') msg = data.detail;
     else if (data && Array.isArray(data.detail) && data.detail[0]) msg = data.detail[0].msg;
     const err = new Error(msg);
@@ -131,11 +131,11 @@ document.addEventListener('error', function (e) {
 
 const NAV = [
   ['dashboard', 'Dashboard'],
-  ['explore', 'Explore Stocks'],
+  ['explore', 'Find Stocks'],
   ['portfolio', 'My Portfolio'],
   ['watchlist', 'Watchlist'],
   ['notes', 'My Notes'],
-  ['code-analysis', 'Code Analysis'],
+  ['code-analysis', 'Under the Hood'],
   ['settings', 'Settings']
 ];
 
@@ -161,7 +161,7 @@ async function initShell(active) {
       '<div class="suggest hidden" id="globalSuggest"></div></div>' +
       '<div class="who">' +
         '<span class="who-name muted">' + esc(me.display_name) + '</span>' +
-        '<span class="pill gray" id="mktPill" title="US stock market">Market ...</span>' +
+        '<span class="mkt" id="mktPill" data-s="unknown" title="US stock market"><span class="dot"></span><span id="mktTxt">Market</span></span>' +
         '<a class="cash" href="portfolio">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
         themeButton() +
         '<button class="btn light sm" id="logoutBtn">Log out</button>' +
@@ -185,18 +185,13 @@ async function initShell(active) {
 }
 
 // says if the market is open or closed, shows in the top bar on every page
-function marketPillHtml(open, known) {
-  if (known === false) return '<span class="pill gray">Market status unknown</span>';
-  return '<span class="pill ' + (open ? '' : 'warn') + '">' + (open ? 'Market open' : 'Market closed') + '</span>';
-}
-
 async function loadMarketPill() {
   const el = document.getElementById('mktPill');
   if (!el) return;
   try {
     const m = await api('/api/stocks/market/status', { noRedirect: true });
-    el.className = 'pill ' + (!m.known ? 'gray' : (m.open ? '' : 'warn'));
-    el.textContent = !m.known ? 'Market status unknown' : (m.open ? 'Market open' : 'Market closed');
+    el.dataset.s = !m.known ? 'unknown' : (m.open ? 'open' : 'closed');
+    document.getElementById('mktTxt').textContent = !m.known ? 'Market status unknown' : (m.open ? 'Market open' : 'Market closed');
   } catch (e) {
     // quiet, it will try again in a minute
   }
@@ -248,19 +243,19 @@ function setupSearch() {
 // small line that says how fresh a price is
 function liveLabel(q) {
   const t = new Date(q.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  let txt = (q.market_open ? 'Market open' : 'Market closed') + ', last update ' + t;
-  if (q.stale) txt += ' (provider not responding, showing older data)';
+  let txt = 'Updated ' + t;
+  if (q.stale) txt += ' (the price source is not answering, so this is older data)';
   return txt;
 }
 
 function demoBanner() {
-  return '<div class="banner">Pretend money only, not financial advice. Prices come from Yahoo Finance and can run about 15 minutes behind.</div>';
+  return '<div class="banner">This is pretend money, and none of it is financial advice. Prices come from Yahoo Finance and can be about 15 minutes late.</div>';
 }
 
 // warning that goes above anything the ai wrote
 function aiWarning() {
-  return '<div class="banner warn-ai"><b>Heads up:</b> this was written by an AI from news headlines. ' +
-    'It can be wrong or out of date. It is a guess, not advice. Do not use it for real money decisions.</div>';
+  return '<div class="banner warn-ai"><b>Heads up:</b> an AI wrote this after reading news headlines. ' +
+    'It can be wrong or out of date, so treat it as a guess and not advice. Please do not use it for real money choices.</div>';
 }
 
 // loading placeholders, grey bars that pulse a little
@@ -278,8 +273,8 @@ function skeletonCards(n) {
 
 // puts a button in a loading state, call the returned function to undo it
 function busy(btn, text) {
-  const old = btn.textContent;
+  const old = btn.innerHTML;
   btn.disabled = true;
-  btn.textContent = text;
-  return function () { btn.disabled = false; btn.textContent = old; };
+  btn.innerHTML = '<span class="spin"></span>' + esc(text);
+  return function () { btn.disabled = false; btn.innerHTML = old; };
 }

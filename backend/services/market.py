@@ -7,10 +7,10 @@ import urllib.request
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 
-# Real market data from Yahoo Finance's public chart feed. No api key.
-# It is free but unofficial, so it can be slow, rate limited or change one day.
-# US prices are live or up to about 15 minutes behind depending on the stock.
-# Everything goes through fetch_chart() so swapping the source later is one place.
+# real prices from yahoo finance, no api key
+# it is free but unofficial, so it can be slow or change one day
+# prices can be up to about 15 minutes late
+# everything goes through fetch_chart() so swapping the source later is easy
 
 # (the last two numbers in each row are old simulation leftovers, not used anymore)
 COMPANIES = [

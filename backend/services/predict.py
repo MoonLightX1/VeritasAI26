@@ -9,20 +9,18 @@ import time
 from config import BASE_DIR
 from services import market, news
 
-# How the prediction works
-# 1. grab recent news for the company and score every headline from -1 (bad) to +1 (good)
-# 2. turn that into one number for the company, newer headlines count more
-# 3. work out the price trend and how jumpy the stock is from its recent history
-# 4. draw the future line:
-#      - news is neutral / mixed -> the line just keeps following the current trend (stable)
-#      - news is clearly good    -> the line leans up
-#      - news is clearly bad     -> the line leans down
-#    plus a shaded range that gets wider the further out we look.
-# This is an estimate for learning, not financial advice, and it says so in the api answer.
+# how the prediction works
+# 1. get the news and score each headline from -1 (bad) to +1 (good)
+# 2. squash it into one mood number, newer headlines count more
+# 3. work out the price trend and how jumpy the stock is
+# 4. draw the line:
+#    mixed news keeps the trend, good news leans up, bad news leans down
+#    and the shaded range gets wider the further out we go
+# it is a guess for learning, not financial advice
 
 MODEL_DIR = os.path.join(BASE_DIR, "model", "moneysprout-26-out")
 
-# ---------- sentiment ----------
+# sentiment
 
 POS = set("""beat beats surge surges soar soars jump jumps rally rallies rise rises rose gain gains gained up upgrade upgrades
 upgraded record strong stronger growth grow grows profit profits profitable boost boosts bullish outperform outperforms
@@ -48,10 +46,9 @@ _engine = {"name": None, "fn": None}
 _engine_lock = threading.Lock()
 
 
-# Context rules. A headline can contain a scary word without being bad news about the stock,
-# e.g. a movie trailer for "The Affair". So we ignore quoted titles, ignore entertainment
-# headlines that are not about the business, and only treat a personal scandal as serious
-# when an executive or owner is actually involved.
+# context rules. a scary word is not always bad news (a trailer for "The Affair" is not a scandal)
+# so we skip quoted titles, skip entertainment headlines, and only count a personal scandal
+# when an executive or owner is in it
 _QUOTED = re.compile(r"[\u201c\"][^\u201d\"]{2,}[\u201d\"]|\u2018[^\u2019]{2,}\u2019|(?<![\w])'[^']{2,}'(?![\w])")
 ENTERTAINMENT = set("""trailer teaser movie movies film films episode episodes premiere premieres sequel prequel actor actress
 cast docuseries soundtrack streaming-release miniseries""".split())
@@ -108,9 +105,8 @@ def is_severe(text):
     return bool(words & SEVERE) or personal_scandal(text)
 
 
-# Finding out what is in the model folder, and saying so out loud when it does not load.
-# Every failure sets a plain-english reason that is printed in the server window and shown
-# in the app (under the summary), so "it is not loading" always has an answer.
+# figuring out what is in the model folder
+# if it does not load we save a plain reason and show it in the app, so you always know why
 
 _status = {"checked": False, "kind": None, "dir": MODEL_DIR, "base": None, "reason": ""}
 _status_lock = threading.RLock()
@@ -410,7 +406,7 @@ def label_for(s):
     return "neutral"
 
 
-# ---------- forecast ----------
+# forecast
 
 # how many steps ahead to draw for each chart range
 HORIZON = {"1D": 45, "1W": 26, "1M": 7, "3M": 12, "6M": 21, "1Y": 30, "5Y": 90, "MAX": 26}
@@ -698,7 +694,7 @@ def predict(ticker, range_name, progress=None, ai=False):
 
     gen = None
     if ai:
-        cb("model", "running", "Loading the AI model. The first time this downloads the base model and can take several minutes...")
+        cb("model", "running", "Loading the AI model. The first time it has to download the base model, which can take a few minutes...")
         gen = _get_generator()
         if gen:
             cb("model", "done", "AI model ready")
@@ -725,11 +721,11 @@ def predict(ticker, range_name, progress=None, ai=False):
 
     rows, pos, neg, mid, severe, s, lab = _build(items, scores, rel, notes)
 
-    cb("flags", "running", "Checking for serious events like lawsuits, investigations or executive scandals...")
+    cb("flags", "running", "Looking for big trouble like lawsuits, investigations or executive scandals...")
     if severe:
-        cb("flags", "warn", "%d serious headline%s, for example: \"%s\"" % (len(severe), "" if len(severe) == 1 else "s", severe[0]["title"][:90]))
+        cb("flags", "warn", "%d serious headline%s, like: \"%s\"" % (len(severe), "" if len(severe) == 1 else "s", severe[0]["title"][:90]))
     else:
-        cb("flags", "done", "None found")
+        cb("flags", "done", "Nothing scary found")
     ignored = sum(1 for r in rows if not r["relevant"])
     cb("score", "done", "%d good, %d bad, %d neutral (%d ignored as not about the business). Overall mood %+.2f (%s), scored by %s"
        % (len(pos), len(neg), mid, ignored, s, lab, engine))
@@ -848,18 +844,18 @@ def predict(ticker, range_name, progress=None, ai=False):
     return out
 
 
-# ---------- background jobs (so the app can show live progress) ----------
+# background jobs, so the page can show progress
 
 STEPS = [
-    ("history", "Loading price history"),
-    ("trend", "Measuring the price trend"),
+    ("history", "Grabbing the price history"),
+    ("trend", "Working out the price trend"),
     ("news", "Searching the news"),
-    ("score", "Scoring every headline"),
+    ("score", "Reading every headline"),
     ("model", "Loading the AI model"),
-    ("verify", "AI double-checks the key headlines"),
-    ("flags", "Checking for serious events"),
-    ("ai", "AI makes its prediction and summary"),
-    ("forecast", "Drawing the forecast"),
+    ("verify", "AI double-checks the main headlines"),
+    ("flags", "Looking for big trouble"),
+    ("ai", "AI writes its guess and summary"),
+    ("forecast", "Drawing the forecast line"),
 ]
 _jobs = {}
 _jobs_lock = threading.Lock()
@@ -977,7 +973,7 @@ def job_state(user_id, jid):
             "result": job["result"] if job["done"] else None}
 
 
-# ---------- the summary on the side ----------
+# the summary on the side
 
 _sum_cache = {}
 SUM_TTL = 600

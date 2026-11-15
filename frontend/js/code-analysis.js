@@ -91,7 +91,7 @@ function barChart(box, cfg) {
 // price line, forecast, shaded range, real stuff
 function fanChart(box, d, title) {
   const svg = startChart(box, title, [
-    ['past price', 'var(--text)'], ['forecast', 'var(--green)'], ['range it promised', 'var(--good-line)'], ['what really happened', 'var(--down)']
+    ['past price', 'var(--text)'], ['forecast', 'var(--accent)'], ['range it promised', 'var(--good-line)'], ['what really happened', 'var(--down)']
   ]);
   const L = 44, R = 12, T = 14, B = 28, W = 640, H = 270;
   const iw = W - L - R, ih = H - T - B;
@@ -115,7 +115,7 @@ function fanChart(box, d, title) {
   let pts = x(last) + ',' + y(d.hist[last]);
   d.hi.forEach(function (v, i) { pts += ' ' + x(last + 1 + i) + ',' + y(v); });
   for (let i = nf - 1; i >= 0; i--) pts += ' ' + x(last + 1 + i) + ',' + y(d.lo[i]);
-  el('polygon', { points: pts, style: 'fill:var(--green);opacity:0.2' }, svg);
+  el('polygon', { points: pts, style: 'fill:var(--accent);opacity:0.2' }, svg);
 
   const line = function (arr, startIdx, startVal, style) {
     let p = '';
@@ -124,7 +124,7 @@ function fanChart(box, d, title) {
     el('polyline', { points: p.trim(), style: 'fill:none;' + style }, svg);
   };
   line(d.hist, 0, null, 'stroke:var(--text);stroke-width:1.6');
-  line(d.mid, nh, d.hist[last], 'stroke:var(--green);stroke-width:2;stroke-dasharray:6 4');
+  line(d.mid, nh, d.hist[last], 'stroke:var(--accent);stroke-width:2;stroke-dasharray:6 4');
   line(d.actual, nh, d.hist[last], 'stroke:var(--down);stroke-width:1.8');
 
   // line between past and future
@@ -139,7 +139,7 @@ function drawAll() {
   barChart(document.getElementById('chartAcc'), {
     title: 'Headline test: overall accuracy (63 headlines)',
     labels: ['Always guess\nbiggest group', 'Keyword scorer,\nno context rules', 'Keyword scorer,\nwith context rules'],
-    series: [{ name: 'accuracy', color: 'var(--green)', values: [31.7, 79.4, 87.3] }],
+    series: [{ name: 'accuracy', color: 'var(--accent)', values: [31.7, 79.4, 87.3] }],
     max: 100, unit: '%', steps: 4
   });
 
@@ -148,7 +148,7 @@ function drawAll() {
     title: 'Headline test: precision and recall by kind of headline',
     labels: ['Good', 'Bad', 'Routine', 'Not about\nthe business'],
     series: [
-      { name: 'precision (when it said this, how often it was right)', color: 'var(--green)', values: [90.5, 94.7, 72.2, 100] },
+      { name: 'precision (when it said this, how often it was right)', color: 'var(--accent)', values: [90.5, 94.7, 72.2, 100] },
       { name: 'recall (how many of the real ones it found)', color: 'var(--muted)', values: [95, 90, 86.7, 62.5] }
     ],
     max: 100, unit: '%', steps: 4
@@ -158,7 +158,7 @@ function drawAll() {
   barChart(document.getElementById('chartCombine'), {
     title: 'Mood score for piles of identical very positive headlines',
     labels: ['1 headline', '3 headlines', '10 headlines', '20 headlines', '10 good +\n1 scandal'],
-    series: [{ name: 'mood score', color: 'var(--green)', values: [0.469, 0.726, 0.898, 0.946, 0.489] }],
+    series: [{ name: 'mood score', color: 'var(--accent)', values: [0.469, 0.726, 0.898, 0.946, 0.489] }],
     max: 1, unit: '', steps: 5, decimals: 2
   });
 
@@ -166,7 +166,7 @@ function drawAll() {
   barChart(document.getElementById('chartBand'), {
     title: 'Simulated stocks: how often the real price landed in the 80% range (last day)',
     labels: ['Normal\nmoves', 'Fat-tailed\nmoves', 'Volatility\nshock', 'Good news\n(noise)', 'Bad news\n(noise)'],
-    series: [{ name: 'hit rate', color: 'var(--green)', values: [80.4, 79.1, 41.7, 71.7, 69.2] }],
+    series: [{ name: 'hit rate', color: 'var(--accent)', values: [80.4, 79.1, 41.7, 71.7, 69.2] }],
     max: 100, unit: '%', steps: 4, ref: { value: 80, label: 'promised 80%' }
   });
 

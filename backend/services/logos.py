@@ -5,9 +5,9 @@ import urllib.request
 
 from config import BASE_DIR
 
-# Company logos. The browser can only load images from this site (see the CSP in main.py),
-# so the server grabs each logo once, saves it in logo_cache, and serves it from there.
-# The domains are a fixed list on purpose, nobody can make the server fetch random sites.
+# company logos
+# the browser can only load images from our own site, so the server grabs each logo once
+# and saves it in logo_cache. the domains are a fixed list so nobody can make us fetch random sites
 
 CACHE_DIR = os.path.join(BASE_DIR, "logo_cache")
 

@@ -6,7 +6,7 @@ const GRADE_TEXT = { elementary: 'Elementary school', middle_school: 'Middle sch
 const REL_TEXT = { mother: 'Mother', father: 'Father', guardian: 'Legal guardian', grandparent: 'Grandparent', other: 'Other' };
 const STATUS_PILL = {
   none: ['gray', 'Not asked yet'],
-  pending: ['warn', 'Waiting for a parent'],
+  pending: ['warn', 'Waiting on a parent'],
   approved: ['', 'Approved'],
   denied: ['bad', 'Denied']
 };
@@ -27,7 +27,7 @@ function renderAccount() {
     row('Watchlist companies', m.watchlist_count);
   document.getElementById('dname').value = m.display_name;
   document.getElementById('demoState').textContent = m.demo_mode
-    ? 'Demo mode is on, so the demo parent override and pretend deposits are available.'
+    ? 'Demo mode is on, so you can use the parent override and add pretend money.'
     : 'Demo mode is off.';
   renderParent();
 }
@@ -56,16 +56,16 @@ async function loadPerm() {
 
   const actions = document.getElementById('permActions');
   if (d.status === 'none' || d.status === 'denied') {
-    actions.innerHTML = '<button class="btn" id="reqBtn">Ask a parent for permission</button>';
+    actions.innerHTML = '<button class="btn" id="reqBtn">Ask a parent to say okay</button>';
     document.getElementById('reqBtn').onclick = async function () {
       try {
         await api('/api/parental-controls/request', { method: 'POST' });
-        toast('Request sent');
+        toast('Request sent!');
         loadPerm();
       } catch (e) { toast(e.message, true); }
     };
   } else if (d.status === 'pending') {
-    actions.innerHTML = '<span class="muted">A parent needs to approve your request.</span>';
+    actions.innerHTML = '<span class="muted">Now a parent just needs to say okay.</span>';
   } else {
     actions.innerHTML = '';
   }
@@ -79,7 +79,7 @@ async function loadPerm() {
   } else {
     hist.innerHTML = d.history.map(function (h) {
       return '<div class="row"><div><span class="pill ' + (STATUS_PILL[h.status] || ['', ''])[0] + '">' + h.status + '</span> ' +
-        (h.demo_override ? '<span class="pill warn">DEMO OVERRIDE</span> ' : '') +
+        (h.demo_override ? '<span class="pill warn">Demo override</span> ' : '') +
         '<span class="muted small">' + esc(h.note || '') + '</span></div>' +
         '<div class="muted small">' + shortDate(h.requested_at) + '</div></div>';
     }).join('');
@@ -99,7 +99,7 @@ document.getElementById('demoDeny').onclick = function () { demoDecide('deny'); 
 
 document.getElementById('saveName').onclick = async function () {
   const v = document.getElementById('dname').value.trim();
-  if (!v) { toast('Name cannot be empty.', true); return; }
+  if (!v) { toast('Your name cannot be blank.', true); return; }
   try {
     await api('/api/auth/display-name', { method: 'PUT', body: { display_name: v } });
     toast('Name saved');
@@ -124,10 +124,10 @@ document.getElementById('savePw').onclick = async function () {
 };
 
 document.getElementById('resetBtn').onclick = async function () {
-  if (!confirm('Reset your virtual portfolio back to $10,000? Your holdings and transactions will be removed.')) return;
+  if (!confirm('Start over with $10,000? Your shares and trades will be cleared.')) return;
   try {
     await api('/api/portfolio/reset', { method: 'POST', body: { confirm: true } });
-    toast('Portfolio reset');
+    toast('Fresh start, you have $10,000 again');
     setWallet(10000);
   } catch (e) { toast(e.message, true); }
 };
@@ -135,7 +135,7 @@ document.getElementById('resetBtn').onclick = async function () {
 document.getElementById('delBtn').onclick = async function () {
   const pw = document.getElementById('delpw').value;
   if (!pw) { toast('Type your password first.', true); return; }
-  if (!confirm('Delete your account forever? This cannot be undone.')) return;
+  if (!confirm('Really delete your account? You cannot undo this.')) return;
   try {
     await api('/api/auth/delete-account', { method: 'POST', body: { password: pw } });
     location.href = '/';

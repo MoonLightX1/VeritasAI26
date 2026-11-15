@@ -101,7 +101,7 @@ function predictionNoteText(p) {
     L.push(sum.text);
   }
   L.push('');
-  L.push('Warning: AI can be wrong. This is a guess, not advice.');
+  L.push('Heads up: the AI can be wrong. This is a guess, not advice.');
   L.push(p.disclaimer);
   return L.join('\n').slice(0, 9800);
 }
@@ -177,10 +177,10 @@ function renderPredictInfo(p) {
     pct(p.change_pct) + ')</span>, and the shaded area is the likely range.</div>' +
     (p.news.length
       ? '<ul>' + p.news.map(function (n) {
-          return '<li' + (n.relevant === false ? ' style="opacity:.55"' : '') + (n.note ? ' title="' + esc(n.note) + '"' : '') + '>' + toneBadge(n.score, n.relevant) + (n.severe ? '<span class="tone neg" title="Serious: legal, leadership or regulatory">!</span>' : '') + '<a href="' + esc(safeUrl(n.link)) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
+          return '<li' + (n.relevant === false ? ' style="opacity:.55"' : '') + (n.note ? ' title="' + esc(n.note) + '"' : '') + '>' + toneBadge(n.score, n.relevant) + (n.severe ? '<span class="tone neg flag" title="Serious one: legal, leadership or rules trouble">!</span>' : '') + '<a href="' + esc(safeUrl(n.link)) + '" target="_blank" rel="noopener noreferrer">' + esc(n.title) +
             '</a><span class="src">' + esc(n.publisher) + '</span></li>';
         }).join('') + '</ul>'
-      : '<div class="muted small" style="margin-top:6px">No recent news came back, so this follows the price trend only.</div>') +
+      : '<div class="muted small" style="margin-top:6px">No recent news came back, so this just follows the price trend.</div>') +
     '<p class="muted small" style="margin:8px 0 0">' + esc(p.disclaimer) + '</p>';
   box.classList.remove('hidden');
 }
@@ -190,14 +190,22 @@ function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 // the popup that shows what the prediction is doing, step by step
 function openProgress(onCancel) {
   const host = document.getElementById('modalHost');
-  const icons = { pending: '&#9675;', done: '&#10003;', warn: '!', skipped: '&ndash;', error: '&times;' };
+  // one icon set: 16px, same stroke
+  const svg = function (d) { return '<svg class="i" viewBox="0 0 16 16" aria-hidden="true">' + d + '</svg>'; };
+  const icons = {
+    pending: svg('<circle cx="8" cy="8" r="5.5"/>'),
+    done: svg('<path d="M3.5 8.5l3 3 6-7"/>'),
+    warn: svg('<circle cx="8" cy="8" r="6"/><path d="M8 4.9v3.5M8 10.9v.01"/>'),
+    skipped: svg('<path d="M4 8h8"/>'),
+    error: svg('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>')
+  };
   host.innerHTML =
     '<div class="modal-bg"><div class="modal" style="max-width:560px">' +
       '<h2>Predicting ' + esc(stock.name) + '</h2>' +
       '<p class="muted small" id="pgSub">Starting...</p>' +
       '<ul class="steps" id="pgSteps"></ul>' +
       '<div id="pgErr" class="banner err hidden"></div>' +
-      '<p class="muted small" id="pgHint">The first prediction can take a few minutes while the AI model loads. After that it is much faster.</p>' +
+      '<p class="muted small" id="pgHint">The first one can take a few minutes while the AI model loads. After that it is a lot quicker.</p>' +
       '<button class="btn light" id="pgCancel">Cancel</button>' +
     '</div></div>';
   document.getElementById('pgCancel').onclick = onCancel;
@@ -205,11 +213,11 @@ function openProgress(onCancel) {
     update: function (st) {
       // someone else is being reviewed, so we wait in line
       if (st.queued) {
-        document.getElementById('pgSub').textContent = 'Currently in line, pos: #' + st.position;
-        document.getElementById('pgHint').textContent = 'Another review is running. Yours starts when it is done, you can keep this open.';
+        document.getElementById('pgSub').textContent = 'You are in line, spot #' + st.position;
+        document.getElementById('pgHint').textContent = 'Someone else is up first. Yours starts when they finish, so feel free to leave this open.';
       } else {
         document.getElementById('pgSub').textContent = 'Working for ' + st.elapsed + 's';
-        document.getElementById('pgHint').textContent = 'The first prediction can take a few minutes while the AI model loads. After that it is much faster.';
+        document.getElementById('pgHint').textContent = 'The first one can take a few minutes while the AI model loads. After that it is a lot quicker.';
       }
       document.getElementById('pgSteps').innerHTML = st.steps.map(function (x) {
         const ic = x.status === 'running' ? '<span class="spin"></span>' : (icons[x.status] || icons.pending);
@@ -350,8 +358,14 @@ async function liveRefresh() {
   if (document.hidden || !chart || !stock) return;
   try {
     const s = await api('/api/stocks/' + TICKER);
+    const was = stock.quote.price;
     stock.quote = s.quote;
     renderHead();
+    // short flash when the price moves
+    if (s.quote.price !== was) {
+      const el = document.querySelector('#head .price');
+      if (el) el.classList.add(s.quote.price > was ? 'flash-up' : 'flash-down');
+    }
     const mine = loadToken;
     const h = await api('/api/stocks/' + TICKER + '/history?range=' + range);
     if (mine !== loadToken || h.range !== range) return;
@@ -364,7 +378,7 @@ async function liveRefresh() {
 function renderHead() {
   const q = stock.quote;
   document.title = stock.name + ' (' + stock.ticker + ') - MoneySprout';
-  document.getElementById('head').innerHTML = logoHtml(stock.ticker, true) + '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted mono" style="font-size:16px">' + stock.ticker + '</span> ' + marketPillHtml(q.market_open) + '</h1>' +
+  document.getElementById('head').innerHTML = logoHtml(stock.ticker, true) + '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="ticker">' + stock.ticker + '</span></h1>' +
     '<div class="muted small">' + esc(stock.exchange) + ' &middot; ' + esc(stock.sector) + '</div>' +
     '<div><span class="price">' + money(q.price) + '</span> <span class="' + cls(q.change) + '"><b>' +
     signedMoney(q.change) + ' (' + pct(q.change_pct) + ')</b></span></div>' +

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MoneySprout - Practice the stock market with pretend money</title>
-  <script src="js/theme.js?v=12"></script>
-  <link rel="stylesheet" href="css/style.css?v=12">
+  <title>MoneySprout - Try the stock market with pretend money</title>
+  <script src="js/theme.js?v=13"></script>
+  <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body>
   <div class="pub-nav">
@@ -17,43 +17,85 @@
   </div>
 
   <div class="hero">
-    <div>
-      <h1>Practice trading real stocks with $10,000 of pretend money</h1>
-      <p class="lead">Pick from 20 well known companies, read live price charts, and buy and sell with virtual cash. You can't lose real money.</p>
+    <div class="hero-copy">
+      <h1>Try trading real stocks with $10,000 of pretend money</h1>
+      <p class="lead">Check out live price charts for 20 companies you have probably heard of, peek at a forecast based on the news, and buy and sell with fake cash. Nothing you do here can cost you real money.</p>
       <div class="actions">
         <a class="btn lg" href="signup">Start with $10,000</a>
       </div>
     </div>
+
+    <div>
+      <div class="card preview" aria-hidden="true">
+        <div class="stock-head">
+          <div class="name">
+            <div class="logo img big"><img src="/api/stocks/logo/AAPL" alt="" data-t="AAPL"></div>
+            <div>
+              <h1 style="margin:0">Apple <span class="ticker">AAPL</span></h1>
+              <div><span class="price">$189.42</span> <span class="up"><b>+3.37 (+1.81%)</b></span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <span class="btn buy">Buy</span>
+            <span class="btn sell">Sell</span>
+          </div>
+        </div>
+        <div class="ranges">
+          <span class="chip">1D</span><span class="chip">1W</span><span class="chip">1M</span><span class="chip">3M</span><span class="chip">6M</span><span class="chip on">1Y</span><span class="chip">5Y</span><span class="chip">Max</span>
+        </div>
+        <div class="predict-bar">
+          <span class="seg"><span class="chip">Actual</span><span class="chip on">Guess (news)</span></span>
+        </div>
+        <div class="chart-box">
+        <svg viewBox="0 70 1000 230" role="img" aria-label="Price chart with a dashed forecast">
+          <line class="pv-grid" x1="0" x2="1000" y1="60" y2="60"/><line class="pv-grid" x1="0" x2="1000" y1="120" y2="120"/><line class="pv-grid" x1="0" x2="1000" y1="180" y2="180"/><line class="pv-grid" x1="0" x2="1000" y1="240" y2="240"/>
+          <polygon class="pv-band" points="700,122 780,109 860,94 940,79 1000,68 1000,132 940,127 860,126 780,125 700,122"/>
+          <path class="pv-hist" d="M0 210 L26 205 L52 212 L78 198 L104 190 L130 196 L156 184 L181 178 L207 186 L233 172 L259 165 L285 170 L311 158 L337 162 L363 150 L389 156 L415 146 L441 140 L467 148 L493 138 L519 132 L544 140 L570 128 L596 134 L622 126 L648 120 L674 128 L700 122"/>
+          <path class="pv-pred" d="M700 122 L780 116 L860 108 L940 100 L1000 96"/>
+          <text class="pv-label" x="706" y="292">Forecast starts here</text>
+        </svg>
+        </div>
+        <div class="predict-info">
+          <div class="pi-head"><b>Guess: from $189.42 to about $196.10</b> <span class="up"><b>(+3.5%)</b></span></div>
+          <ul>
+            <li><span class="tone pos">+0.62</span>Quarterly earnings beat what people expected</li>
+            <li><span class="tone neg">-0.31</span>Regulators start looking into the company</li>
+          </ul>
+        </div>
+      </div>
+      <p class="muted small preview-note">Just an example with made up numbers. The real page uses live prices and today's news.</p>
+    </div>
   </div>
 
-  <div class="section" style="padding-top:0">
-    <h2>What you can do</h2>
+  <div class="section">
+    <h2>Look at a chart, make a move, remember why</h2>
     <ul class="plain-list">
-      <li><b>Charts</b><span>Zoom, pan and hover over prices from one day to the max range. Download any chart as an image.</span></li>
-      <li><b>Drawing</b><span>Lines, arrows, boxes, circles and text that stick to the dates and prices you drew them on.</span></li>
-      <li><b>Portfolio</b><span>Your cash, holdings, profit and loss, and every practice trade.</span></li>
-      <li><b>Watchlist</b><span>Keep an eye on companies without buying anything.</span></li>
-      <li><b>Notes</b><span>Write down why you made a move, then look back later and see if you were right.</span></li>
+      <li><b>Charts</b><span>Zoom in, drag around and hover over the prices, from just today all the way back. You can save any chart as a picture too.</span></li>
+      <li><b>Drawing</b><span>Doodle on the chart with lines, arrows, boxes, circles and text. They stay right where you drew them.</span></li>
+      <li><b>Portfolio</b><span>See your cash, what you own, how you are doing, and every practice trade you have made.</span></li>
+      <li><b>Watchlist</b><span>Keep an eye on companies you like without buying a thing.</span></li>
+      <li><b>Notes</b><span>Jot down why you made a move, then come back later and see if you were right.</span></li>
     </ul>
   </div>
 
-  <div class="section" style="padding-top:0">
+  <div class="section">
     <div class="safety">
-      <h2>If you are under 18</h2>
+      <h2>Under 18? A parent says okay first</h2>
       <ul>
-        <li>You add a parent or guardian when you sign up, and they need to approve your trades.</li>
-        <li>Prices are real market data, up to about 15 minutes behind.</li>
-        <li>Nothing here is financial advice.</li>
+        <li>You add a parent or guardian when you sign up.</li>
+        <li>The prices are real, just up to about 15 minutes behind.</li>
+        <li>Nothing here is financial advice, it is just for learning.</li>
       </ul>
     </div>
   </div>
 
   <div class="cta">
+    <h2>Your $10,000 is waiting for you</h2>
     <a class="btn lg" href="signup">Start with $10,000</a>
   </div>
 
-  <div class="footer">Educational simulation. Prices from Yahoo Finance, may be delayed. No real trades are made.</div>
+  <div class="footer">Just for learning. Prices come from Yahoo Finance and may be a bit late. No real trades happen here.</div>
 
-  <script src="js/index.js?v=12"></script>
+  <script src="js/index.js?v=13"></script>
 </body>
 </html>

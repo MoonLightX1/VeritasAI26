@@ -8,13 +8,11 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
-# Company news from two free sources, no api keys:
-#   - Yahoo Finance's search feed (financial news)
-#   - Google News rss (much wider, and it is how we catch things Yahoo skips, like an
-#     executive scandal, a lawsuit or an investigation)
-# We run several searches per company at the same time and merge them, so the prediction
-# sees a lot more than one feed's top 10. Both feeds are unofficial: if one is down we use
-# the other, and if both are down we return [] and the prediction uses the price trend only.
+# company news from two free places, no api keys
+#   yahoo finance search (money news)
+#   google news rss (wider, catches scandals and lawsuits that yahoo skips)
+# we run a few searches at once and merge them
+# both are unofficial. if one is down we use the other, if both are down we return []
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 YAHOO_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]

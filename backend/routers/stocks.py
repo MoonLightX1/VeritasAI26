@@ -22,7 +22,8 @@ def search(q: str = "", user=Depends(current_user)):
 
 
 @router.get("/logo/{ticker}")
-def get_logo(ticker: str, user=Depends(current_user)):
+def get_logo(ticker: str):
+    # no login needed, it is only the fixed list of company logos and the landing page shows one
     got = logos.get_logo(ticker)
     if not got:
         raise HTTPException(404, "No logo.")

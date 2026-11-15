@@ -20,12 +20,12 @@ function aiNotice() {
   const host = document.createElement('div');
   host.className = 'modal-bg';
   host.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' +
-    '<h2>Before you start</h2>' +
-    '<p>MoneySprout has AI predictions and summaries. They are made by a computer reading news headlines.</p>' +
-    '<ul class="plain-bullets"><li>They can be wrong, and they are often wrong.</li>' +
+    '<h2>Quick heads up</h2>' +
+    '<p>MoneySprout has AI guesses and summaries. A computer reads the news headlines and writes them.</p>' +
+    '<ul class="plain-bullets"><li>They can be wrong, and a lot of the time they are.</li>' +
     '<li>They are not financial advice.</li>' +
-    '<li>All the money here is pretend. Nothing here is a real trade.</li></ul>' +
-    '<button class="btn block" id="aiOk">I understand</button></div>';
+    '<li>All the money here is pretend, so nothing is a real trade.</li></ul>' +
+    '<button class="btn block" id="aiOk">Got it</button></div>';
   document.body.appendChild(host);
   document.getElementById('aiOk').onclick = function () {
     try { sessionStorage.setItem('aiNoticeSeen', '1'); } catch (e) {}
@@ -59,15 +59,15 @@ async function load(first) {
 
   const w = d.wallet;
   document.getElementById('wallet').innerHTML =
-    statCard('Portfolio value', money(w.total_value), '', '', true, 'Cash plus what your shares are worth right now.') +
-    statCard('Cash', money(w.cash), '', '', false, 'Pretend money you have left to spend.') +
-    statCard('All time', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit), false, 'Gain or loss compared to the money you put in.') +
-    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change), false, 'How your shares moved since yesterday\'s close.');
+    statCard('Portfolio value', money(w.total_value), '', '', true, 'Your cash plus what your shares are worth right now.') +
+    statCard('Cash', money(w.cash), '', '', false, 'Pretend money you still have to spend.') +
+    statCard('Overall', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit), false, 'How much you are up or down compared to what you started with.') +
+    statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change), false, 'How your shares did since yesterday\'s close.');
   setWallet(w.cash);
 
   const watch = document.getElementById('watch');
   if (!d.watchlist.length) {
-    watch.innerHTML = '<div class="empty">Nothing here yet. <a href="explore">Find a company</a> and add it to your watchlist.</div>';
+    watch.innerHTML = '<div class="empty">Nothing here yet. <a href="explore">Find a company</a> you like and add it to your watchlist.</div>';
   } else {
     watch.innerHTML = d.watchlist.map(stockRow).join('') + '<p style="margin:10px 0 0"><a href="watchlist">See full watchlist</a></p>';
   }
@@ -76,10 +76,10 @@ async function load(first) {
 
   const act = document.getElementById('activity');
   if (!d.activity.length) {
-    act.innerHTML = '<div class="empty">No trades yet. Open a company and buy a few shares.</div>';
+    act.innerHTML = '<div class="empty">No trades yet. Open a company and buy a few shares to get going.</div>';
   } else {
     act.innerHTML = d.activity.map(function (a) {
-      return '<div class="row"><div><span class="pill ' + (a.kind === 'buy' ? '' : 'warn') + '">' + a.kind.toUpperCase() + '</span> ' +
+      return '<div class="row"><div><b class="' + (a.kind === 'buy' ? 'up' : 'down') + '">' + a.kind.toUpperCase() + '</b> ' +
         a.quantity + ' x <a href="stock?t=' + a.ticker + '">' + a.ticker + '</a> at ' + money(a.price) +
         '</div><div class="muted small">' + shortDate(a.at) + '</div></div>';
     }).join('');

@@ -9,7 +9,7 @@ async function load() {
   try {
     const data = await api('/api/watchlist');
     if (!data.items.length) {
-      listBox.innerHTML = '<div class="empty">Nothing on your watchlist yet. Add a company above.</div>';
+      listBox.innerHTML = '<div class="empty">Nothing on your watchlist yet. Add a company up above.</div>';
       return;
     }
     listBox.innerHTML = data.items.map(function (c) {
@@ -54,7 +54,7 @@ function findTicker(text) {
 
 document.getElementById('addBtn').onclick = async function () {
   const t = findTicker(addInput.value);
-  if (!t) { toast('Pick a company from the list.', true); return; }
+  if (!t) { toast('Pick a company from the list please.', true); return; }
   try {
     await api('/api/watchlist', { method: 'POST', body: { ticker: t } });
     addInput.value = '';

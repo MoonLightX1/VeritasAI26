@@ -18,8 +18,8 @@ REMEMBER_DAYS = 30
 # the site is served over https through the cloudflare tunnel, so cookies are secure
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
 
-# the __Host- prefix makes browsers refuse the cookie unless it is secure, on this exact host, with no domain.
-# it needs https, so plain http local testing (COOKIE_SECURE=false) uses the normal name
+# the __Host- prefix makes browsers only accept the cookie over https on this exact site
+# for plain http testing (COOKIE_SECURE=false) we use the normal name
 COOKIE_NAME = "__Host-ms_session" if COOKIE_SECURE else "ms_session"
 
 # only these hostnames are allowed to reach the app (comma separated)

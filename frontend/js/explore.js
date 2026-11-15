@@ -13,7 +13,7 @@ async function search() {
     const list = data.results;
     countBox.textContent = list.length + (list.length === 1 ? ' company' : ' companies');
     if (!list.length) {
-      resultsBox.innerHTML = '<div class="empty" style="grid-column:1/-1">Nothing matched that search. Try a different name or ticker.</div>';
+      resultsBox.innerHTML = '<div class="empty" style="grid-column:1/-1">Nothing matched that. Try another name or ticker.</div>';
       return;
     }
     resultsBox.innerHTML = list.map(function (c) {
