@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from database import get_db, now
 from deps import current_user
-from services import market, predict
+from services import logos, market, predict
 import security
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -19,6 +19,19 @@ def must_exist(ticker):
 @router.get("/search")
 def search(q: str = "", user=Depends(current_user)):
     return {"results": market.search(q[:50])}
+
+
+@router.get("/logo/{ticker}")
+def get_logo(ticker: str, user=Depends(current_user)):
+    got = logos.get_logo(ticker)
+    if not got:
+        raise HTTPException(404, "No logo.")
+    return Response(content=got[0], media_type=got[1], headers={"Cache-Control": "private, max-age=604800"})
+
+
+@router.get("/market/status")
+def market_status(user=Depends(current_user)):
+    return market.market_status()
 
 
 @router.get("/{ticker}")
@@ -92,6 +105,11 @@ def prediction_job(jid: str, user=Depends(current_user)):
     if st is None:
         raise HTTPException(404, "That prediction is not running anymore.")
     return st
+
+
+@router.post("/job/{jid}/cancel")
+def cancel_prediction(jid: str, user=Depends(current_user)):
+    return {"cancelled": predict.cancel_job(user["id"], jid)}
 
 
 @router.get("/{ticker}/summary")

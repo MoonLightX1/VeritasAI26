@@ -117,8 +117,17 @@ window.addEventListener('themechange', function () {
 });
 
 function logoHtml(ticker, big) {
-  return '<div class="logo' + (big ? ' big' : '') + '">' + esc(ticker.slice(0, 4)) + '</div>';
+  return '<div class="logo img' + (big ? ' big' : '') + '"><img src="/api/stocks/logo/' + encodeURIComponent(ticker) + '" alt="" data-t="' + esc(ticker) + '"></div>';
 }
+
+// if a logo does not load, go back to the ticker letters
+document.addEventListener('error', function (e) {
+  const im = e.target;
+  if (!im || im.tagName !== 'IMG' || !im.dataset.t) return;
+  const box = im.parentNode;
+  box.classList.remove('img');
+  box.textContent = im.dataset.t.slice(0, 4);
+}, true);
 
 const NAV = [
   ['dashboard', 'Dashboard'],
@@ -152,6 +161,7 @@ async function initShell(active) {
       '<div class="suggest hidden" id="globalSuggest"></div></div>' +
       '<div class="who">' +
         '<span class="who-name muted">' + esc(me.display_name) + '</span>' +
+        '<span class="pill gray" id="mktPill" title="US stock market">Market ...</span>' +
         '<a class="cash" href="portfolio">Cash <b id="walletAmt">' + money(me.wallet.cash) + '</b></a>' +
         themeButton() +
         '<button class="btn light sm" id="logoutBtn">Log out</button>' +
@@ -169,7 +179,27 @@ async function initShell(active) {
   };
 
   setupSearch();
+  loadMarketPill();
+  setInterval(function () { if (!document.hidden) loadMarketPill(); }, 60000);
   return me;
+}
+
+// says if the market is open or closed, shows in the top bar on every page
+function marketPillHtml(open, known) {
+  if (known === false) return '<span class="pill gray">Market status unknown</span>';
+  return '<span class="pill ' + (open ? '' : 'warn') + '">' + (open ? 'Market open' : 'Market closed') + '</span>';
+}
+
+async function loadMarketPill() {
+  const el = document.getElementById('mktPill');
+  if (!el) return;
+  try {
+    const m = await api('/api/stocks/market/status', { noRedirect: true });
+    el.className = 'pill ' + (!m.known ? 'gray' : (m.open ? '' : 'warn'));
+    el.textContent = !m.known ? 'Market status unknown' : (m.open ? 'Market open' : 'Market closed');
+  } catch (e) {
+    // quiet, it will try again in a minute
+  }
 }
 
 function setWallet(cash) {

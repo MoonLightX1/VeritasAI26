@@ -203,7 +203,14 @@ function openProgress(onCancel) {
   document.getElementById('pgCancel').onclick = onCancel;
   return {
     update: function (st) {
-      document.getElementById('pgSub').textContent = 'Working for ' + st.elapsed + 's';
+      // someone else is being reviewed, so we wait in line
+      if (st.queued) {
+        document.getElementById('pgSub').textContent = 'Currently in line, pos: #' + st.position;
+        document.getElementById('pgHint').textContent = 'Another review is running. Yours starts when it is done, you can keep this open.';
+      } else {
+        document.getElementById('pgSub').textContent = 'Working for ' + st.elapsed + 's';
+        document.getElementById('pgHint').textContent = 'The first prediction can take a few minutes while the AI model loads. After that it is much faster.';
+      }
       document.getElementById('pgSteps').innerHTML = st.steps.map(function (x) {
         const ic = x.status === 'running' ? '<span class="spin"></span>' : (icons[x.status] || icons.pending);
         return '<li class="' + x.status + '"><span class="ic">' + ic + '</span><div><b>' + esc(x.title) + '</b>' +
@@ -220,6 +227,12 @@ function openProgress(onCancel) {
   };
 }
 
+// leaves the line if we are still waiting, does nothing if it already started
+function cancelJob(jid) {
+  if (!jid) return;
+  api('/api/stocks/job/' + jid + '/cancel', { method: 'POST' }).catch(function () {});
+}
+
 function applyPrediction(p) {
   chart.setPrediction(p.points);
   renderPredictInfo(p);
@@ -232,8 +245,8 @@ async function loadPrediction() {
   const hit = predCache[range];
   if (hit && Date.now() - hit.at < PRED_FRESH) { applyPrediction(hit.data); return; }
 
-  const pop = openProgress(function () { pop.close(); setView('actual'); });
   let jid;
+  const pop = openProgress(function () { pop.close(); setView('actual'); cancelJob(jid); });
   try {
     jid = (await api('/api/stocks/' + TICKER + '/predict/start?range=' + range, { method: 'POST' })).job;
   } catch (e) {
@@ -245,7 +258,7 @@ async function loadPrediction() {
   let fails = 0;
   while (true) {
     await sleep(700);
-    if (mine !== predToken || view !== 'pred') { pop.close(); return; } // cancelled or changed range
+    if (mine !== predToken || view !== 'pred') { pop.close(); cancelJob(jid); return; } // cancelled or changed range
     let st;
     try {
       st = await api('/api/stocks/job/' + jid);
@@ -351,7 +364,7 @@ async function liveRefresh() {
 function renderHead() {
   const q = stock.quote;
   document.title = stock.name + ' (' + stock.ticker + ') - MoneySprout';
-  document.getElementById('head').innerHTML = '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted mono" style="font-size:16px">' + stock.ticker + '</span></h1>' +
+  document.getElementById('head').innerHTML = logoHtml(stock.ticker, true) + '<div><h1 style="margin:0">' + esc(stock.name) + ' <span class="muted mono" style="font-size:16px">' + stock.ticker + '</span> ' + marketPillHtml(q.market_open) + '</h1>' +
     '<div class="muted small">' + esc(stock.exchange) + ' &middot; ' + esc(stock.sector) + '</div>' +
     '<div><span class="price">' + money(q.price) + '</span> <span class="' + cls(q.change) + '"><b>' +
     signedMoney(q.change) + ' (' + pct(q.change_pct) + ')</b></span></div>' +

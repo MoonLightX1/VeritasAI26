@@ -240,6 +240,15 @@ def quote(ticker):
     return _quote_for(ticker, ticker)
 
 
+def market_status():
+    # is the us market open right now, uses apple since it is already cached from the quotes
+    try:
+        meta = _get("AAPL", "1D")[0]
+    except MarketUnavailable:
+        return {"known": False, "open": False}
+    return {"known": True, "open": _market_open(meta)}
+
+
 def prefetch(tickers, sparks=False):
     # warm the cache for many stocks at once so pages do not wait one by one
     todo = [t.upper() for t in tickers if is_company(t)]

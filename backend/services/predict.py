@@ -872,8 +872,56 @@ def _clean_jobs():
         del _jobs[k]
 
 
+# jobs wait in line here, only one runs at a time (the AI is heavy)
+_queue = []
+_running = None
+_worker_on = False
+
+
+def _run_job(job):
+    def progress(step, status, detail=None):
+        with job["lock"]:
+            for st in job["steps"]:
+                if st["id"] == step:
+                    st["status"] = status
+                    if detail is not None:
+                        st["detail"] = detail
+
+    try:
+        job["result"] = predict(job["ticker"], job["range"], progress=progress, ai=True)
+    except market.MarketUnavailable as e:
+        job["error"] = str(e) or "Market data is not available right now."
+    except Exception as e:
+        print("[MoneySprout predict] %s: %s" % (type(e).__name__, e), flush=True)
+        job["error"] = "Something went wrong while predicting. Try again."
+    job["done"] = True
+
+
+def _worker():
+    # grabs the next job in line until the line is empty
+    global _running, _worker_on
+    while True:
+        with _jobs_lock:
+            job = None
+            while _queue and job is None:
+                jid = _queue.pop(0)
+                j = _jobs.get(jid)
+                if j and not j["cancelled"] and not j["done"]:
+                    job = j
+                    j["started_at"] = time.time()
+                    _running = jid
+            if job is None:
+                _running = None
+                _worker_on = False
+                return
+        _run_job(job)
+        with _jobs_lock:
+            _running = None
+
+
 def start_job(user_id, ticker, range_name):
     import uuid
+    global _worker_on
     with _jobs_lock:
         _clean_jobs()
         # one at a time per person, if they already have one running give that back
@@ -884,30 +932,30 @@ def start_job(user_id, ticker, range_name):
             return None
         jid = uuid.uuid4().hex
         job = {"user": user_id, "ticker": ticker, "range": range_name, "created": time.time(), "done": False,
-               "error": None, "result": None, "lock": threading.Lock(),
+               "error": None, "result": None, "lock": threading.Lock(), "started_at": None, "cancelled": False,
                "steps": [{"id": i, "title": t, "status": "pending", "detail": ""} for i, t in STEPS]}
         _jobs[jid] = job
-
-    def progress(step, status, detail=None):
-        with job["lock"]:
-            for st in job["steps"]:
-                if st["id"] == step:
-                    st["status"] = status
-                    if detail is not None:
-                        st["detail"] = detail
-
-    def work():
-        try:
-            job["result"] = predict(ticker, range_name, progress=progress, ai=True)
-        except market.MarketUnavailable as e:
-            job["error"] = str(e) or "Market data is not available right now."
-        except Exception as e:
-            print("[MoneySprout predict] %s: %s" % (type(e).__name__, e), flush=True)
-            job["error"] = "Something went wrong while predicting. Try again."
-        job["done"] = True
-
-    threading.Thread(target=work, daemon=True).start()
+        _queue.append(jid)
+        if not _worker_on:
+            _worker_on = True
+            threading.Thread(target=_worker, daemon=True).start()
     return jid
+
+
+def cancel_job(user_id, jid):
+    # only works if it is still waiting in line, a running one just gets ignored by the page
+    with _jobs_lock:
+        job = _jobs.get(jid)
+        if not job or job["user"] != user_id:
+            return False
+        if job["started_at"] is None and not job["done"]:
+            job["cancelled"] = True
+            job["done"] = True
+            job["error"] = "Cancelled."
+            if jid in _queue:
+                _queue.remove(jid)
+            return True
+    return False
 
 
 def job_state(user_id, jid):
@@ -916,8 +964,17 @@ def job_state(user_id, jid):
         return None
     with job["lock"]:
         steps = [dict(st) for st in job["steps"]]
+    # position in line: 1 means it is next (or running), 2 means one job is ahead, and so on
+    position = None
+    if job["started_at"] is None and not job["done"]:
+        with _jobs_lock:
+            if jid in _queue:
+                position = _queue.index(jid) + 1 + (1 if _running else 0)
+    started = job["started_at"] or time.time()
     return {"done": job["done"], "error": job["error"], "steps": steps,
-            "elapsed": int(time.time() - job["created"]), "result": job["result"] if job["done"] else None}
+            "queued": position is not None, "position": position,
+            "elapsed": int(time.time() - started) if job["started_at"] else 0,
+            "result": job["result"] if job["done"] else None}
 
 
 # ---------- the summary on the side ----------
