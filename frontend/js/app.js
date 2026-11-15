@@ -126,6 +126,7 @@ const NAV = [
   ['portfolio', 'My Portfolio'],
   ['watchlist', 'Watchlist'],
   ['notes', 'My Notes'],
+  ['code-analysis', 'Code Analysis'],
   ['settings', 'Settings']
 ];
 
