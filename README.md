@@ -12,9 +12,6 @@ MoneySprout is a practice stock market. You sign up, get $10,000 of pretend mone
 
 There is also a forecast. It goes in as a company's recent prices plus its recent news headlines, and comes out as a dashed forecast line with a shaded range, a mood score for the news, and a short written summary. Under 18s need a parent or guardian on the account.
 
-# What we added
-Our own idea.
-
 # How it works
 **Data:** Prices come from Yahoo Finance. News comes from Yahoo Finance search and Google News (7 searches per company, newest 45 headlines kept, repeats removed). To train the AI adapter we used three public Hugging Face datasets (about 10K lines in total, see Sources). To test headline reading we wrote 63 headlines by hand and labeled them: 20 good, 20 bad, 15 routine and 8 not about the business. Those 63 were never used for training.
 
@@ -60,17 +57,3 @@ You can rerun all of this with `python analysis-tests/baseline.py`. The full wal
 - FastAPI: https://fastapi.tiangolo.com
 - Inter and JetBrains Mono fonts (licenses are in frontend/fonts)
 - Cloudflare Tunnel, used to host the site
-
-**AI tools used:** TODO, Nickolas and Chau please list any AI tools you used to help write code or text here, with links.
-
-# Run it yourself
-Most people should just use https://moneysprout.renengine.com. If you want to run your own copy:
-
-    python -m venv venv
-    venv\Scripts\activate
-    pip install -r requirements.txt
-    .\start-moneysprout.ps1
-
-To turn the AI adapter on you also need `pip install torch transformers peft`.
-
-by Nickolas Bogert and Thi Minh Chau Pham
