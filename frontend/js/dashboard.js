@@ -22,7 +22,7 @@ function aiNotice() {
   host.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' +
     '<h2>Quick heads up</h2>' +
     '<p>MoneySprout has AI guesses and summaries. A computer reads the news headlines and writes them.</p>' +
-    '<ul class="plain-bullets"><li>They can be wrong, and a lot of the time they are.</li>' +
+    '<ul class="plain-bullets"><li>There is a chance of it being wrong.</li>' +
     '<li>They are not financial advice.</li>' +
     '<li>Nothing here is a real trade.</li></ul>' +
     '<button class="btn block" id="aiOk">Got it</button></div>';

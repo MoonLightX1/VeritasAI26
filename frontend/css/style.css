@@ -438,6 +438,8 @@ input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid var
 /* notes page */
 .notes-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: var(--s-4); align-items: start; }
 .notes-layout > .card + .card { margin-top: 0; }
+/* stack the dropdowns so the full text fits */
+.notes-filters { display: grid; grid-template-columns: 1fr; gap: var(--s-3); margin-bottom: 12px; }
 .notes-side { position: sticky; top: var(--s-4); max-height: calc(100vh - 32px); overflow: auto; }
 .note-item { padding: var(--s-3); border-radius: var(--r-ctl); cursor: pointer; border: 1px solid transparent; border-bottom-color: var(--line); }
 .note-item:hover { background: var(--accent-light); }

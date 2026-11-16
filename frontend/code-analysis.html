@@ -11,7 +11,7 @@
 <body>
   <div id="page" class="hidden">
     <h1>Under the hood</h1>
-    <p class="muted">How the forecast works and how we tested it. The code blocks were all run for real and the grey box under each one is what it printed. You can rerun them with analysis-tests/examples.py.</p>
+    <p class="muted">How the forecast works and how we tested it. The code blocks were all run for real and the grey box under each one is what it printed.</p>
 
     <div class="card">
       <h2>1. How the forecast works</h2>
@@ -25,19 +25,18 @@
         <li>Mix the scores into one mood number. Newer headlines count more.</li>
         <li>Draw the forecast line and the shaded range.</li>
       </ol>
-      <p>If the optional AI part is loaded, it also double checks the top 16 headlines and gives its own outlook. If it fails for any reason, the app uses the plain keyword version and tells you why.</p>
     </div>
 
     <div class="card">
       <h2>2. The AI part</h2>
-      <p>The AI is a small LoRA adapter on top of Qwen2.5-3B-Instruct, so we didn't have to retrain the whole model. It runs from a folder on the same computer, so there are no API keys and nothing gets sent to an outside AI company. It's optional. The test results below are for the keyword scorer and the forecast math.</p>
+      <p>The AI is a small LoRA adapter on top of Qwen2.5-3B-Instruct, so we didn't have to retrain the whole model. It runs from a folder on the same computer, so there are no API keys and nothing gets sent to an outside AI company. The test results below are for the keyword scorer and the forecast math.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Thing</th><th>Value</th></tr></thead>
         <tbody>
           <tr><td>Base model</td><td>Qwen/Qwen2.5-3B-Instruct</td></tr>
           <tr><td>Method</td><td>LoRA, rank 16, alpha 32, dropout 0.05</td></tr>
           <tr><td>Size</td><td>About 29.9 million numbers, roughly 1 percent of the base model</td></tr>
-          <tr><td>Training</td><td>1 pass over about 10K lines, learning rate 0.0002</td></tr>
+          <tr><td>Training</td><td>1 pass over about 10K lines (cut down a lot of the data to focus on the most relevant examples), learning rate 0.0002</td></tr>
         </tbody>
       </table></div>
       <p>Training data, all public on Hugging Face:</p>
@@ -92,7 +91,6 @@ for t in ["Best Netflix shows to binge this weekend",
       <pre class="code-block code-out">(0.8, True, '') | Best Netflix shows to binge this weekend
 (-0.85, True, 'Executive scandal') | Alphabet CEO accused of misconduct, board opens probe
 (0.0, True, '') | Apple to hold annual developer conference in June</pre>
-      <p>The first one is wrong. "shows" isn't on the entertainment list, so nothing caught it.</p>
     </div>
 
     <div class="card">
