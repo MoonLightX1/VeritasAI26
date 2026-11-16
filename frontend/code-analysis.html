@@ -4,187 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Under the Hood - MoneySprout</title>
-  <script src="js/theme.js?v=13"></script>
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="icon" type="image/png" href="/assets/moneysprout-icon.png">
+  <script src="js/theme.js?v=14"></script>
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <div id="page" class="hidden">
-    <div class="banner err">
-      <b>Quick note:</b> this page is just a demo. The code it talks about is a class project, so please do not treat it like something ready for the real world.
-    </div>
-
     <h1>Under the hood</h1>
-    <p class="muted">Hi! This is a walkthrough of the AI part of MoneySprout. It covers what the code does, what we tested, what broke, and what we still do not know. We tried to keep the words simple, and every code example is real.</p>
+    <p class="muted">How the forecast works and how we tested it. The code blocks were all run for real and the grey box under each one is what it printed. You can rerun them with analysis-tests/examples.py.</p>
 
     <div class="card">
-      <h2>Start here</h2>
-      <p>Nothing on this page runs live. Every code block was run for real, and the grey box under it shows what it printed. You can run them all yourself, they live in analysis-tests/examples.py.</p>
-      <p>Here is what we tested, and what we did not get to.</p>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Part</th><th>Tested?</th><th>How</th></tr></thead>
-        <tbody>
-          <tr><td>Keyword headline scorer and context rules</td><td><span class="pill">Tested</span></td><td>63 headlines we wrote by hand and labeled</td></tr>
-          <tr><td>Combining headlines into one mood number</td><td><span class="pill">Tested</span></td><td>Real function, piles of identical headlines</td></tr>
-          <tr><td>Reading the AI's answer (the parser)</td><td><span class="pill">Tested</span></td><td>9 made-up model outputs, clean to garbage</td></tr>
-          <tr><td>Forecast line and shaded range</td><td><span class="pill">Fake prices only</span></td><td>1,500 simulated stocks per scenario</td></tr>
-          <tr><td>The adapter files and how the app loads them</td><td><span class="pill">Checked</span></td><td>Read the config, the weights header and the training settings, ran the app's own folder check</td></tr>
-          <tr><td>How accurate the adapter is</td><td><span class="pill bad">Not tested</span></td><td>Needs the 3B base model and torch, and we did not have either. Test five is a script that does it for you</td></tr>
-          <tr><td>Live Yahoo and Google News feeds</td><td><span class="pill bad">Not tested</span></td><td>Our test setup had no internet</td></tr>
-          <tr><td>Beating a simple baseline</td><td><span class="pill">Tested</span></td><td>Headlines: yes, by a lot. Forecast on fake stocks: no, see section 13</td></tr>
-          <tr><td>Predictions against real past prices</td><td><span class="pill bad">Not tested</span></td><td>We did not use any real price history. This matters a lot, see section 12</td></tr>
-        </tbody>
-      </table></div>
-      <p>The adapter is the big gap. We know what is inside it and how it plugs in, but we have not measured how good it is. So we are not going to put an accuracy number for it on this page. A blank is better than a made-up number.</p>
-    </div>
-
-    <div class="card">
-      <h2>1. How the prediction works</h2>
-      <p>It all lives in backend/services/predict.py. When you hit Predict on a stock page, the server runs these steps in the background so the page can show you how it is going.</p>
+      <h2>1. How the forecast works</h2>
+      <p>It all lives in backend/services/predict.py. When you hit Predict on a stock page, the server does this in the background:</p>
       <ol class="plain-bullets">
         <li>Get the price history from Yahoo Finance.</li>
-        <li>Work out the trend and how jumpy the price is, using the last 60 moves. The trend is capped so it cannot run away.</li>
-        <li>Search the news. Seven searches run at the same time, the results get merged and the repeats get tossed, and the newest 45 headlines are kept. We hold on to them for 15 minutes.</li>
-        <li>Score every headline from -1 (bad) to +1 (good) with the keyword list.</li>
-        <li>Context rules fix the silly mistakes. Shows and movies get ignored, and executive scandals get pushed to negative.</li>
-        <li>If the AI loaded, it re-reads the 16 most important headlines and says good, bad, neutral or not relevant.</li>
-        <li>Squash it all into one mood number. Newer headlines count more, a small pile gets pulled toward zero, and serious stuff gets an extra push down.</li>
-        <li>Draw the forecast line. The trend fades out, a price that ran too far gets pulled back toward its average, a little wiggle is added, and the shaded range gets wider the further out you look.</li>
-        <li>If the AI loaded, it also gives its own outlook and percent change. That gets mixed 75/25 with the stats line and capped.</li>
+        <li>Work out the trend and how jumpy the price is from the last 60 moves.</li>
+        <li>Search the news. Seven searches run at once, repeats get dropped, and we keep the newest 45 headlines.</li>
+        <li>Score every headline from -1 (bad) to +1 (good) using a keyword list.</li>
+        <li>Context rules fix the dumb mistakes. Shows and movies get ignored, and executive scandals get pushed negative.</li>
+        <li>Mix the scores into one mood number. Newer headlines count more.</li>
+        <li>Draw the forecast line and the shaded range.</li>
       </ol>
-      <p>The adapter is a text writer, not a classifier. So the keyword list always does step 4, and the adapter helps out in steps 6 and 9. If the AI fails anywhere, the app switches to the plain version and tells you why. That part works well and is worth keeping.</p>
+      <p>If the optional AI part is loaded, it also double checks the top 16 headlines and gives its own outlook. If it fails for any reason, the app uses the plain keyword version and tells you why.</p>
     </div>
 
     <div class="card">
-      <h2>2. The AI adapter</h2>
-      <p>The AI is a LoRA adapter. Think of it as a small pile of tweaks that sits on top of a normal model, so we did not have to retrain the whole thing.</p>
+      <h2>2. The AI part</h2>
+      <p>The AI is a small LoRA adapter on top of Qwen2.5-3B-Instruct, so we didn't have to retrain the whole model. It runs from a folder on the same computer, so there are no API keys and nothing gets sent to an outside AI company. It's optional. The test results below are for the keyword scorer and the forecast math.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Thing</th><th>Value</th></tr></thead>
         <tbody>
           <tr><td>Base model</td><td>Qwen/Qwen2.5-3B-Instruct</td></tr>
           <tr><td>Method</td><td>LoRA, rank 16, alpha 32, dropout 0.05</td></tr>
-          <tr><td>Where it plugs in</td><td>All 7 projection layers (q, k, v, o, gate, up, down) in all 36 blocks</td></tr>
-          <tr><td>Size</td><td>504 small tensors, about 29.9 million numbers, roughly 1 percent of the 3B model. The file is about 120 MB because it is saved as 32-bit floats</td></tr>
-          <tr><td>Task type</td><td>CAUSAL_LM, so it writes text. It is not a classifier</td></tr>
-          <tr><td>Training settings</td><td>1 pass over the data, learning rate 0.0002, batch of 2 times 8 saved-up steps (16), cosine schedule, 8-bit AdamW, bf16, seed 42</td></tr>
-          <tr><td>Training data</td><td>About 10K lines, so roughly 600 training steps (10,000 divided by 16)</td></tr>
+          <tr><td>Size</td><td>About 29.9 million numbers, roughly 1 percent of the base model</td></tr>
+          <tr><td>Training</td><td>1 pass over about 10K lines, learning rate 0.0002</td></tr>
         </tbody>
       </table></div>
-      <p>These come straight from the files (adapter_config.json, training_args.bin, and the header of adapter_model.safetensors), not from memory. Here is how to read them yourself.</p>
-      <pre class="code-block"># the small json next to the adapter weights
-cfg = json.load(open(os.path.join(ADAPTER, "adapter_config.json")))
-for k in ["base_model_name_or_path", "peft_type", "task_type", "r", "lora_alpha", "lora_dropout"]:
-    print(k, "=", cfg[k])
-print("target_modules =", sorted(cfg["target_modules"]))</pre>
-      <pre class="code-block code-out">base_model_name_or_path = Qwen/Qwen2.5-3B-Instruct
-peft_type = LORA
-task_type = CAUSAL_LM
-r = 16
-lora_alpha = 32
-lora_dropout = 0.05
-target_modules = ['down_proj', 'gate_proj', 'k_proj', 'o_proj', 'q_proj', 'up_proj', 'v_proj']</pre>
-      <p>The weights file starts with a small JSON header, so you can count what is inside without installing torch.</p>
-      <pre class="code-block"># safetensors starts with a json header, so we can count things without torch
-f = open(os.path.join(ADAPTER, "adapter_model.safetensors"), "rb")
-n = struct.unpack("&lt;Q", f.read(8))[0]
-header = json.loads(f.read(n))
-header.pop("__metadata__", None)
-total = sum(math.prod(v["shape"]) for v in header.values())
-layers = {int(re.search(r"layers\.(\d+)\.", k).group(1)) for k in header}
-print("tensors:", len(header))
-print("layers:", len(layers))
-print("numbers inside:", total, "(about", round(total / 1e6, 1), "million)")
-print("dtype:", {v["dtype"] for v in header.values()})
-for k in ["q_proj", "down_proj"]:
-    a = header["base_model.model.model.layers.0.%s.lora_A.weight" % ("mlp." + k if k == "down_proj" else "self_attn." + k)]
-    b = header["base_model.model.model.layers.0.%s.lora_B.weight" % ("mlp." + k if k == "down_proj" else "self_attn." + k)]
-    print(k, "A", a["shape"], "B", b["shape"])</pre>
-      <pre class="code-block code-out">tensors: 504
-layers: 36
-numbers inside: 29933568 (about 29.9 million)
-dtype: {'F32'}
-q_proj A [16, 2048] B [2048, 16]
-down_proj A [16, 11008] B [2048, 16]</pre>
-      <pre class="code-block"># base model is about 3 billion numbers, the adapter is a tiny slice
-print(round(total / 3.09e9 * 100, 2), "percent of Qwen2.5-3B")</pre>
-      <pre class="code-block code-out">0.97 percent of Qwen2.5-3B</pre>
-
-      <h3>The training data</h3>
-      <p>Three public datasets from Hugging Face:</p>
+      <p>Training data, all public on Hugging Face:</p>
       <ul class="plain-bullets">
-        <li><a href="https://huggingface.co/datasets/FinGPT/fingpt-forecaster-dow30-202305-202405/tree/main/data" target="_blank" rel="noopener">FinGPT forecaster, Dow 30, May 2023 to May 2024</a>. Stock forecasting data for the 30 Dow companies.</li>
-        <li><a href="https://huggingface.co/datasets/oliverwang15/news_with_gpt_instructions/tree/main/data" target="_blank" rel="noopener">news_with_gpt_instructions</a>. News with instructions written by GPT.</li>
-        <li><a href="https://huggingface.co/datasets/ashraq/financial-news-articles/tree/main/data" target="_blank" rel="noopener">financial-news-articles</a>. A big pile of financial news articles.</li>
+        <li><a href="https://huggingface.co/datasets/FinGPT/fingpt-forecaster-dow30-202305-202405/tree/main/data" target="_blank" rel="noopener">FinGPT forecaster, Dow 30, May 2023 to May 2024</a></li>
+        <li><a href="https://huggingface.co/datasets/oliverwang15/news_with_gpt_instructions/tree/main/data" target="_blank" rel="noopener">news_with_gpt_instructions</a></li>
+        <li><a href="https://huggingface.co/datasets/ashraq/financial-news-articles/tree/main/data" target="_blank" rel="noopener">financial-news-articles</a></li>
       </ul>
-      <p>Sadly nobody wrote down how many lines came from each set, how the lines became prompts and answers, or what the loss was at the end. The training settings say evaluation was switched on, so there may have been a test split, but those numbers did not come with the adapter. If you still have the training notebook or the trainer logs, please add them here.</p>
-
-      <h3>How the app uses it</h3>
-      <p>Put the adapter files in backend/model/moneysprout-26-out. predict.py looks in that folder (and one or two folders down), reads adapter_config.json, and finds the base model name in base_model.txt. We pointed the real function at the adapter folder and here is what it saw.</p>
-      <pre class="code-block"># we point predict.py at the adapter folder and ask what it sees
-P.MODEL_DIR = ADAPTER
-P._status.update(checked=False, kind=None, dir=ADAPTER, base=None, reason="")
-print("kind:", P._inspect())
-print("base:", P._status["base"])</pre>
-      <pre class="code-block code-out">[MoneySprout model] found a adapter_causal model in XXX (base: Qwen/Qwen2.5-3B-Instruct)
-kind: adapter_causal
-base: Qwen/Qwen2.5-3B-Instruct</pre>
-      <p>Loading it only takes two lines. It puts the adapter on the base model and merges them so it runs faster.</p>
-      <pre class="code-block">base = auto.from_pretrained(_status["base"], torch_dtype="auto", **extra)
-model = PeftModel.from_pretrained(base, d)
-try:
-    model = model.merge_and_unload()  # faster to run
-except Exception:
-    pass</pre>
-      <p>On a computer without the packages you get a plain English reason instead of a crash. That is what we got here, since we did not have torch.</p>
-      <pre class="code-block"># only runs if LOAD_MODEL=1. with no torch installed you get the plain english reason
-if os.environ.get("LOAD_MODEL") == "1":
-    gen = P._get_generator()
-    print("generator:", gen)
-    print("note:", P.model_note())
-else:
-    print("skipped, set LOAD_MODEL=1 to try")</pre>
-      <pre class="code-block code-out">[MoneySprout model] peft transformers torch is not installed (No module named 'transformers'). Run: pip install peft transformers torch
-generator: None
-note: peft transformers torch is not installed (No module named 'transformers'). Run: pip install peft transformers torch</pre>
-      <p>Two things worth knowing. First, only the progress-bar route (POST /predict/start) turns the AI on. The plain GET /predict route never loads it. Second, the first prediction is slow because the 3B base model has to load, but after that it stays in memory.</p>
     </div>
 
     <div class="card">
-      <h2>3. What we used</h2>
-      <p>There are no API keys anywhere, and we never call an outside AI company. The AI runs from a folder on the same computer. Most of the data sources are unofficial though.</p>
-      <div class="table-wrap"><table>
-        <thead><tr><th>What</th><th>Used for</th><th>Good</th><th>Risk</th></tr></thead>
-        <tbody>
-          <tr><td>Yahoo Finance chart feed</td><td>Prices and history</td><td>Free, no key, saved for a bit, and if Yahoo is down it shows older data marked as stale</td><td>Unofficial, so it can change or block us. Prices can be about 15 minutes late</td></tr>
-          <tr><td>Yahoo Finance search feed</td><td>News headlines</td><td>Free, and already about the company</td><td>Same unofficial risk. Titles only</td></tr>
-          <tr><td>Google News RSS</td><td>Wider news: executives, lawsuits, regulators</td><td>Catches things Yahoo skips</td><td>Unofficial. Titles only. Can drift off topic</td></tr>
-          <tr><td>transformers, peft, torch</td><td>Running Qwen plus the adapter</td><td>Optional. App falls back if they are missing</td><td>Not in requirements.txt, so they do not install by default</td></tr>
-          <tr><td>Python standard library</td><td>Fetching, parsing, background jobs, math</td><td>No extra installs for the core path</td><td>Hand-written math, with no stats library to double check it</td></tr>
-          <tr><td>FastAPI</td><td>The endpoints</td><td>Per-user rate limits</td><td>Nothing to worry about here</td></tr>
-        </tbody>
-      </table></div>
-      <p>To turn the adapter on you need three more packages:</p>
-<pre class="code-block">pip install torch transformers peft</pre>
-    </div>
-
-    <div class="card">
-      <h2>4. The code, one piece at a time</h2>
-      <p>Every snippet is real. Wherever you see P, that is predict.py, loaded with from services import predict as P. When we cut some lines out, we put three dots.</p>
-
-      <h3>The keyword scorer</h3>
-      <p>Two word lists, one good and one bad. Count the hits, flip a word if "not" is right before it, then squash the total so one loud word cannot max it out.</p>
-      <pre class="code-block">for i, w in enumerate(words):
-    val = 1 if w in POS else -1 if w in NEG else 0
-    if not val:
-        continue
-    # "not good" flips it
-    if i &gt; 0 and words[i - 1] in NEGATORS:
-        val = -val
-    total += val
-    hits += 1
-...
-# squash so one loud word does not max it out
-return max(-1.0, min(1.0, total / (hits + 1.0) * 1.6))</pre>
-      <p>Let us try it on a few headlines.</p>
+      <h2>3. Scoring headlines</h2>
+      <p>The keyword scorer has two word lists, one good and one bad. It counts the hits, flips a word if "not" is right before it, then squashes the total so one loud word can't max it out. P below is predict.py.</p>
       <pre class="code-block"># three headlines, good then bad then boring
 heads = [
     "Apple beats earnings expectations as iPhone sales climb",
@@ -196,47 +62,27 @@ for h in heads:
       <pre class="code-block code-out">1.0 Apple beats earnings expectations as iPhone sales climb
 -0.8 Tesla recalls thousands of vehicles over safety defect
 0.0 Apple to hold annual developer conference in June</pre>
-      <p>The not-flip works like this:</p>
       <pre class="code-block"># "not" right before a word flips it
 print(P._lexicon_score("Ford sales strong"))
 print(P._lexicon_score("Ford sales not strong"))</pre>
       <pre class="code-block code-out">0.8
 -0.8</pre>
-      <p>One hit only gets to 0.8. It takes a pile of hits to reach 1.0.</p>
-      <pre class="code-block"># one hit stays below 1, it takes a pile of hits to get there
-print(P._lexicon_score("Nvidia surges"))
-print(P._lexicon_score("Nvidia surges soars rallies climbs"))</pre>
-      <pre class="code-block code-out">0.8
-1.0</pre>
-      <p>The weak spot is that it only knows the words we gave it. When a good word and a bad word show up together, they cancel out and real bad news scores zero.</p>
-      <pre class="code-block"># this is the known bug, "downgraded" is -1 and "growth" is +1
+      <p>The weak spot is that a good word and a bad word in the same headline cancel out, so real bad news can score zero.</p>
+      <pre class="code-block"># "downgraded" is -1 and "growth" is +1
 print(P._lexicon_score("Netflix downgraded by analysts on slowing growth"))
 print(P._lexicon_score("Spotify shares drop as subscriber growth disappoints"))</pre>
       <pre class="code-block code-out">0.0
 0.0</pre>
 
-      <h3>The context rules</h3>
-      <p>A scary word is not always bad news. A show called "The Affair" is not a scandal. So quoted titles get stripped out, movie and trailer headlines get ignored, and a personal scandal only counts if an executive or owner is in the headline.</p>
+      <h3>Context rules</h3>
+      <p>A scary word isn't always bad news. A show called "The Affair" is not a scandal. So quoted titles get stripped, movie and trailer headlines get ignored, and a personal scandal only counts if an executive or owner is in the headline.</p>
       <pre class="code-block">def judge(title, score):
-    """(score, relevant, note) after the context rules."""
     words = set(re.findall(r"[a-z\-]+", strip_titles(title).lower()))
     if words &amp; ENTERTAINMENT and not (words &amp; BUSINESS):
         return 0.0, False, "About a show, film or trailer, not the company's business"
     if personal_scandal(title):
         return min(score, -0.85), True, "Executive scandal"
     return score, True, ""</pre>
-      <pre class="code-block">def personal_scandal(text):
-    clean = strip_titles(text)
-    return bool(ROLES.search(clean) and PERSONAL.search(clean))</pre>
-      <pre class="code-block"># stuff in quotes is a title, not news
-t = '"The Affair" returns with a dark new season, trailer released'
-print(repr(P.strip_titles(t)))
-print(P._lexicon_score(t))
-print(P.judge(t, P._lexicon_score(t)))</pre>
-      <pre class="code-block code-out">'  returns with a dark new season, trailer released'
-0.0
-(0.0, False, "About a show, film or trailer, not the company's business")</pre>
-      <p>Now judge on a few more. Look at the first one, because it is wrong. "shows" is not on the entertainment list, so nothing caught it.</p>
       <pre class="code-block"># judge gives back (score, counts or not, note)
 for t in ["Best Netflix shows to binge this weekend",
           "Alphabet CEO accused of misconduct, board opens probe",
@@ -246,76 +92,13 @@ for t in ["Best Netflix shows to binge this weekend",
       <pre class="code-block code-out">(0.8, True, '') | Best Netflix shows to binge this weekend
 (-0.85, True, 'Executive scandal') | Alphabet CEO accused of misconduct, board opens probe
 (0.0, True, '') | Apple to hold annual developer conference in June</pre>
-      <p>Some words mark a headline as serious, which means it could move the whole stock on its own. "fined" is not on that list, and that is a gap.</p>
-      <pre class="code-block"># serious means it can move the whole stock by itself
-for t in ["Meta fined by regulators in new privacy ruling",
-          "Tesla CEO affair rumors swirl",
-          "Alphabet hit with antitrust lawsuit",
-          "Apple unveils new iPhone"]:
-    print(P.is_severe(t), "|", t)</pre>
-      <pre class="code-block code-out">False | Meta fined by regulators in new privacy ruling
-True | Tesla CEO affair rumors swirl
-True | Alphabet hit with antitrust lawsuit
-False | Apple unveils new iPhone</pre>
+      <p>The first one is wrong. "shows" isn't on the entertainment list, so nothing caught it.</p>
+    </div>
 
-      <h3>Labels and recency</h3>
-      <p>The mood number turns into a label using a simple cutoff at 0.15.</p>
-      <pre class="code-block">def label_for(s):
-    if s &gt;= 0.15:
-        return "positive"
-    if s &lt;= -0.15:
-        return "negative"
-    return "neutral"</pre>
-      <pre class="code-block"># 0.15 is the line between neutral and not neutral
-for s in [-0.5, -0.15, -0.14, 0, 0.14, 0.15, 0.6]:
-    print(s, P.label_for(s))</pre>
-      <pre class="code-block code-out">-0.5 negative
--0.15 negative
--0.14 neutral
-0 neutral
-0.14 neutral
-0.15 positive
-0.6 positive</pre>
-      <p>Newer headlines count more. Here is how a headline fades as it gets older:</p>
-      <pre class="code-block"># older headlines count less
-for d in [0, 1, 2, 4, 8, 16]:
-    print(d, "days old counts", round(math.exp(-d / 4.0), 2))</pre>
-      <pre class="code-block code-out">0 days old counts 1.0
-1 days old counts 0.78
-2 days old counts 0.61
-4 days old counts 0.37
-8 days old counts 0.14
-16 days old counts 0.02</pre>
-
-      <h3>Squashing headlines into one number</h3>
-      <pre class="code-block">def combine(items, scores, now=None):
-    # newer headlines count more (about a 4 day half-ish life), and only a few
-    # headlines means we are less sure, so the number is pulled toward 0
-    now = now or time.time()
-    wsum = 0.0
-    ssum = 0.0
-    severe_w = 0.0
-    for it, s in zip(items, scores):
-        age_days = max(0.0, (now - it["time"]) / 86400.0)
-        w = math.exp(-age_days / 4.0)
-        wsum += w
-        ssum += w * s
-        # an executive scandal / lawsuit / investigation is not cancelled out by ten
-        # "stock rises" headlines, so negative ones like that get an extra push of their own
-        if s &lt; 0 and is_severe(it["title"]):
-            severe_w += w
-    if wsum &lt;= 0:
-        return 0.0
-    base = (ssum / wsum) * (wsum / (wsum + 1.0))
-    return max(-1.0, min(1.0, base - min(0.7, 0.3 * severe_w)))</pre>
-      <p>Same very positive headline, half a day old, with more and more copies. One headline is not much to go on, so it only gets to 0.47.</p>
+    <div class="card">
+      <h2>4. One mood number</h2>
+      <p>Every headline score gets a weight that drops as the headline gets older (about 37 percent after 4 days). A small pile of headlines gets pulled toward zero because we're less sure. Serious negative headlines get an extra push down so ten "stock rises" stories can't hide a scandal.</p>
       <pre class="code-block"># same very positive headline, half a day old, more and more of them
-now = 1_700_000_000
-
-def pile(n, score=1.0, hours=12):
-    items = [{"title": "Company shares rise on strong demand", "time": now - hours * 3600} for _ in range(n)]
-    return items, [score] * n
-
 for n in [1, 3, 10, 20]:
     items, scores = pile(n)
     print(n, "headlines -&gt;", round(P.combine(items, scores, now=now), 3))</pre>
@@ -323,68 +106,17 @@ for n in [1, 3, 10, 20]:
 3 headlines -&gt; 0.726
 10 headlines -&gt; 0.898
 20 headlines -&gt; 0.946</pre>
-      <p>Ten great headlines and one executive scandal. The scandal pulls the score way down, and that is on purpose.</p>
       <pre class="code-block"># ten great headlines and one executive scandal
-items, scores = pile(10)
-items.append({"title": "Alphabet CEO accused of misconduct, board opens probe", "time": now - 12 * 3600})
-scores.append(-0.85)
 print(round(P.combine(items, scores, now=now), 3))</pre>
       <pre class="code-block code-out">0.489</pre>
-      <p>And no headlines at all just means a mood of zero.</p>
-      <pre class="code-block"># nothing to read means a mood of zero
-print(P.combine([], []))</pre>
-      <pre class="code-block code-out">0.0</pre>
+      <div class="chart-note" id="chartCombine"></div>
+      <p>One glowing headline only gets to 0.47, ten get to 0.90, and ten plus one scandal drops to 0.49. The 0.47 and the 4 day fade are numbers we picked, not something we proved.</p>
+    </div>
 
-      <h3>Trend and swing</h3>
-      <p>The forecast needs two numbers from the price history. The trend is the average move per step. The swing is how jumpy the price is. We cap the trend at 1.5 times the swing so it cannot run wild.</p>
-      <pre class="code-block">def _vol(points):
-    # (trend per step, typical swing per step) from the recent prices, as log returns
-    closes = [p["c"] for p in points]
-    n = len(closes)
-    if n &lt; 8:
-        return None
-    look = min(60, n - 1)
-    rets = [math.log(closes[i] / closes[i - 1]) for i in range(n - look, n) if closes[i - 1] &gt; 0 and closes[i] &gt; 0]
-    if len(rets) &lt; 5:
-        return None
-    mu = sum(rets) / len(rets)
-    var = sum((r - mu) ** 2 for r in rets) / (len(rets) - 1)
-    sigma = max(math.sqrt(var), 1e-5)
-    # a trend alone should not be allowed to run away
-    return max(-1.5 * sigma, min(1.5 * sigma, mu)), sigma</pre>
-      <p>We use a fake stock here so you can run it without any internet.</p>
-      <pre class="code-block"># fake stock, 120 days of random moves around 1.5 percent
-def make_points(seed=11, days=120, sigma=0.015):
-    rng = random.Random(seed)
-    p, t = 100.0, 1_700_000_000_000
-    pts = [{"t": t, "c": p}]
-    for _ in range(days):
-        p *= math.exp(rng.gauss(0, sigma))
-        t += 86400_000
-        pts.append({"t": t, "c": p})
-    return pts
-
-pts = make_points()
-trend, swing = P._vol(pts)
-print("trend per day", round(trend * 100, 3), "percent")
-print("swing per day", round(swing * 100, 3), "percent")</pre>
-      <pre class="code-block code-out">trend per day 0.524 percent
-swing per day 1.439 percent</pre>
-
-      <h3>The forecast line</h3>
-      <p>Most of the move happens early and then levels off. These are the lines that matter.</p>
-      <pre class="code-block"># fade: roughly 85% of the total move is done by the 2/3 point
-tau = max(1.0, steps / 2.5)
-...
-a = max(0.0, min(1.0, (abs(sentiment) - 0.10) / 0.50))
-news_drift = sentiment * 0.45 * sigma
-drift = (1.0 - a) * mu + a * news_drift
-...
-total -= 0.25 * dev
-...
-spread = 1.28 * sigma * math.sqrt(k)  # roughly an 80% range</pre>
-      <p>Here is a 30 day forecast. lo and hi are the shaded range, and you can watch it get wider.</p>
-      <pre class="code-block"># lo and hi are the shaded range
+    <div class="card">
+      <h2>5. The forecast line</h2>
+      <p>The trend is the average move per day and the swing is how jumpy the price is. We cap the trend at 1.5 times the swing so it can't run wild. Most of the move happens early and then levels off, a price that ran too far gets pulled back toward its average, and the shaded range is 1.28 times the swing times the square root of the days ahead (an 80 percent range).</p>
+      <pre class="code-block"># 30 day forecast on a made up stock. lo and hi are the shaded range
 f = P.forecast(pts, 0.0, 30)
 print("start", round(pts[-1]["c"], 2))
 for k in [0, 1, 9, 29]:
@@ -394,175 +126,20 @@ day 1 lo 146.74 line 149.47 hi 152.24
 day 2 lo 148.21 line 152.12 hi 156.14
 day 10 lo 145.85 line 154.59 hi 163.86
 day 30 lo 138.5 line 153.2 hi 169.46</pre>
-      <p>The width of the range is just 1.28 times the swing times the square root of the steps ahead.</p>
-      <pre class="code-block"># 1.28 is the number for an 80 percent range
-for k in [1, 5, 10, 30]:
-    print("step", k, "range is plus or minus", round(1.28 * swing * math.sqrt(k) * 100, 1), "percent")</pre>
-      <pre class="code-block code-out">step 1 range is plus or minus 1.8 percent
-step 5 range is plus or minus 4.1 percent
-step 10 range is plus or minus 5.8 percent
-step 30 range is plus or minus 10.1 percent</pre>
-      <p>Now the same prices with different news moods.</p>
-      <pre class="code-block"># same prices, only the mood changes
-for s in [-0.8, 0.0, 0.8]:
+      <p>Same prices, different news moods:</p>
+      <pre class="code-block">for s in [-0.8, 0.0, 0.8]:
     f = P.forecast(pts, s, 30)
     print("news mood", s, "-&gt; ends at", f[-1]["c"])</pre>
       <pre class="code-block code-out">news mood -0.8 -&gt; ends at 137.24
 news mood 0.0 -&gt; ends at 153.2
 news mood 0.8 -&gt; ends at 153.11</pre>
-      <p>Look at that last row. Mood +0.8 ended a hair lower than mood 0. That is not a typo! Strong news takes the place of the trend instead of adding to it, and this fake stock was already trending up faster than the news drift. It is a quirk worth knowing about, so we listed it in section 11.</p>
-      <p>When the AI gives a target, the line has to end exactly there.</p>
-      <pre class="code-block"># end_log is the AI's target as a log return, the line has to land on it
-f = P.forecast(pts, 0.0, 30, end_log=math.log(1.05))
-print("asked for +5 percent, got", round((f[-1]["c"] / pts[-1]["c"] - 1) * 100, 2), "percent")</pre>
-      <pre class="code-block code-out">asked for +5 percent, got 5.0 percent</pre>
-
-      <h3>Reading the AI's answer</h3>
-      <p>Small models ramble, so the parser looks for JSON first, then goes hunting for words like bearish and numbers with a percent sign. If it finds nothing, the app uses the stats line.</p>
-      <pre class="code-block"># small models ramble, the parser has to cope
-tests = [
-    '{"outlook": "up", "change_pct": "+3.2%", "confidence": "medium", "summary": "Strong demand."}',
-    'Sure! Here you go: {"outlook": "down", "change_pct": -4.5, "confidence": "low", "summary": "Lawsuit risk."} hope that helps',
-    "I think this is bearish, maybe -2% over the period",
-    "the stock looks stable and flat",
-    "asdf qwer zxcv",
-    "",
-]
-for t in tests:
-    r = P._parse_ai(t)
-    print(r["outlook"], r["change_pct"], r["confidence"], "|", t[:40])</pre>
-      <pre class="code-block code-out">up 3.2 medium | {"outlook": "up", "change_pct": "+3.2%",
-down -4.5 low | Sure! Here you go: {"outlook": "down", "
-down -2.0 None | I think this is bearish, maybe -2% over 
-flat None None | the stock looks stable and flat
-None None None | asdf qwer zxcv
-None None None |</pre>
-      <p>The last two rows found nothing, so the app falls back. Now for the flaw. If the model says up but gives a negative number, the app changes the number to match the direction word.</p>
-      <pre class="code-block"># make the direction and the number agree
-if res["outlook"] == "up":
-    chg = abs(chg)
-elif res["outlook"] == "down":
-    chg = -abs(chg)
-elif res["outlook"] == "flat":
-    chg = chg * 0.25</pre>
-      <pre class="code-block"># same fix predict() does, the direction word wins
-raw = '{"outlook": "up", "change_pct": -6, "confidence": "high", "summary": "Shares will fall hard after the lawsuit."}'
-res = P._parse_ai(raw)
-chg = res["change_pct"]
-if res["outlook"] == "up":
-    chg = abs(chg)
-print("model said", res["outlook"], "and", res["change_pct"], "-&gt; app uses", chg)
-print("model's own summary:", res["summary"])</pre>
-      <pre class="code-block code-out">model said up and -6.0 -&gt; app uses 6.0
-model's own summary: Shares will fall hard after the lawsuit.</pre>
-      <p>So the app would draw a rise even though the model's own summary says it will fall. It would be safer to throw the whole answer out.</p>
-
-      <h3>The AI double check</h3>
-      <p>The AI re-reads up to 16 headlines and gives each one a verdict. Here is what the code does with each one.</p>
-      <pre class="code-block">if v == "good":
-    scores[i], rel[i] = (old_s if old_s &gt;= 0.5 else 0.5), True
-elif v == "bad":
-    scores[i], rel[i] = (old_s if old_s &lt;= -0.5 else -0.5), True
-elif v == "neutral":
-    scores[i], rel[i] = 0.0, True
-else:
-    scores[i], rel[i] = 0.0, False</pre>
-      <p>We can test this without a model by using a pretend AI that always gives the same answer. Notice the numbering goes by importance, not by the order we passed the headlines in.</p>
-      <pre class="code-block"># fake_ai stands in for the real model so we can see what verify does
-def fake_ai(prompt):
-    print(prompt.split("\n\n")[1])
-    return '{"1": "irrelevant", "2": "bad", "3": "good"}'
-
-titles = ["Netflix downgraded by analysts on slowing growth",
-          "Best Netflix shows to binge this weekend",
-          "Coca-Cola delivers better than expected earnings"]
-t0 = time.time()
-items = [{"title": t, "time": t0} for t in titles]
-scores, rel, notes = [], [], []
-for t in titles:
-    s, r, n = P.judge(t, P._lexicon_score(t))
-    scores.append(s); rel.append(r); notes.append(n)
-print("before", scores, rel)
-print(P._ai_verify(fake_ai, "Netflix", items, scores, rel, notes))
-print("after ", scores, rel)</pre>
-      <pre class="code-block code-out">before [0.0, 0.8, 0.0] [True, True, True]
-1. Best Netflix shows to binge this weekend
-2. Netflix downgraded by analysts on slowing growth
-3. Coca-Cola delivers better than expected earnings
-['"Best Netflix shows to binge this weekend" -&gt; irrelevant', '"Netflix downgraded by analysts on slowing growth" -&gt; bad', '"Coca-Cola delivers better than expected earnings" -&gt; good']
-after  [-0.5, 0.0, 0.5] [True, False, True]</pre>
-      <p>If the AI answer cannot be read, verify gives back None and the keyword results stay put.</p>
-      <pre class="code-block"># verify gives back None and the keyword result stays
-print(P._ai_verify(lambda p: "no idea lol", "Netflix", items, scores, rel, notes))</pre>
-      <pre class="code-block code-out">None</pre>
-
-      <h3>Mixing the AI with the trend</h3>
-      <p>The AI gets 75 percent of the say and the trend gets 25. A cap stops wild guesses.</p>
-      <pre class="code-block"># do not let a wild guess draw something impossible for this stock
-cap = 2.5 * sigma * math.sqrt(steps)
-ai_end = max(-cap, min(cap, ai_end))
-# mostly the AI, a little of the real trend to keep it grounded
-target = 0.75 * ai_end + 0.25 * math.log(1 + stat_pct / 100.0)</pre>
-      <pre class="code-block"># the AI is trusted 75 percent, the trend 25, and a cap stops wild guesses
-sigma = 0.02
-steps = 30
-stat_pct = 1.0
-for ai_pct in [6.0, 60.0, -60.0]:
-    ai_end = math.log(1 + ai_pct / 100)
-    cap = 2.5 * sigma * math.sqrt(steps)
-    ai_end = max(-cap, min(cap, ai_end))
-    target = 0.75 * ai_end + 0.25 * math.log(1 + stat_pct / 100)
-    print("AI says", ai_pct, "-&gt; capped", round((math.exp(ai_end) - 1) * 100, 1), "-&gt; final", round((math.exp(target) - 1) * 100, 1))</pre>
-      <pre class="code-block code-out">AI says 6.0 -&gt; capped 6.0 -&gt; final 4.7
-AI says 60.0 -&gt; capped 31.5 -&gt; final 23.1
-AI says -60.0 -&gt; capped -24.0 -&gt; final -18.4</pre>
-      <p>So if the AI says +60 percent on a stock that swings 2 percent a day, the app quietly shrinks that way down.</p>
-
-      <h3>Duplicate headlines</h3>
-      <p>The news code decides two titles are the same story if their first 70 letters match after cleaning.</p>
-      <pre class="code-block">def _norm(title):
-    return re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()[:70]</pre>
-      <pre class="code-block"># dedupe only looks at the first 70 letters, after cleaning
-a = "Apple beats earnings expectations as iPhone sales climb"
-b = "APPLE BEATS earnings expectations as iPhone sales climb!!"
-c = "Apple earnings top estimates on strong iPhone demand"
-print(repr(news._norm(a)))
-print("a and b same story:", news._norm(a) == news._norm(b))
-print("a and c same story:", news._norm(a) == news._norm(c))</pre>
-      <pre class="code-block code-out">'apple beats earnings expectations as iphone sales climb'
-a and b same story: True
-a and c same story: False</pre>
-      <p>The same story reworded by five publishers still counts five times.</p>
-
-      <h3>Calling it from the page</h3>
-      <p>The stock page starts a job, then checks in every 0.7 seconds until it is done. These are the real routes.</p>
-<pre class="code-block"># start a prediction with the AI on. you get a job id back
-curl -X POST "https://moneysprout.renengine.com/api/stocks/AAPL/predict/start?range=1M" \
-     -H "X-Requested-With: moneysprout" --cookie "ms_session=YOUR_COOKIE"
-# {"job": "3f9c1a..."}
-
-# ask how it is going. done flips to true when the forecast is ready
-curl "https://moneysprout.renengine.com/api/stocks/job/3f9c1a..." \
-     -H "X-Requested-With: moneysprout" --cookie "ms_session=YOUR_COOKIE"
-
-# the plain version, no AI, one call
-curl "https://moneysprout.renengine.com/api/stocks/AAPL/predict?range=1M" \
-     -H "X-Requested-With: moneysprout" --cookie "ms_session=YOUR_COOKIE"
-
-// the same thing from the page, this is what stock.js does
-const start = await api('/api/stocks/AAPL/predict/start?range=1M', { method: 'POST' });
-while (true) {
-  await sleep(700);
-  const st = await api('/api/stocks/job/' + start.job);
-  if (st.done) { console.log(st.result.sentiment, st.result.ai); break; }
-}</pre>
-      <p>The finished job has the forecast points, the mood score, the headlines, and an ai section that tells you if the AI was used, and if it was not, why not.</p>
+      <p>The last row isn't a typo. Strong news takes the place of the trend instead of adding to it, and this made up stock was already trending up faster than the news drift, so good news came out a hair lower.</p>
     </div>
 
     <div class="card">
-      <h2>5. Test one: can it read a headline?</h2>
-      <p>We wrote 63 headlines by hand in the style of real financial news: 20 good, 20 bad, 15 routine, and 8 that are not about the business at all. We labeled each one ourselves, then ran the keyword scorer and the context rules on them. No AI is involved here.</p>
-      <pre class="code-block"># the real 63 headline test in a few lines
+      <h2>6. Test: reading headlines</h2>
+      <p>We wrote 63 headlines by hand in the style of real financial news: 20 good, 20 bad, 15 routine, and 8 that aren't about the business at all. We labeled each one ourselves and ran the keyword scorer and context rules on them.</p>
+      <pre class="code-block"># the 63 headline test
 from headlines import H
 names = {"positive": "good", "negative": "bad", "neutral": "neutral", "irrelevant": "irrelevant"}
 right = 0
@@ -572,13 +149,8 @@ for t, truth in H:
     right += names[lab] == truth
 print("with rules:", right, "of", len(H))</pre>
       <pre class="code-block code-out">with rules: 55 of 63</pre>
-      <pre class="code-block"># same test but skip judge()
-right = sum(names[P.label_for(P._lexicon_score(t))] == truth for t, truth in H)
-print("without rules:", right, "of", len(H))</pre>
-      <pre class="code-block code-out">without rules: 50 of 63</pre>
       <div class="chart-note" id="chartAcc"></div>
-      <p>55 of 63 right (87.3 percent). Always guessing the biggest group would only get 31.7 percent, so it beats that easily. With the context rules off it drops to 79.4 percent, so the rules are pulling their weight.</p>
-      <p>With only 63 headlines, the real accuracy could be anywhere from about 77 to 93 percent. So please do not treat 87.3 as an exact number.</p>
+      <p>55 of 63 right (87.3 percent). Always guessing the biggest group would only get 31.7 percent. With the context rules turned off it drops to 79.4 percent (50 of 63). With only 63 headlines the real accuracy could be anywhere from about 77 to 93 percent, so don't treat 87.3 as exact.</p>
 
       <div class="chart-note" id="chartPR"></div>
 
@@ -593,9 +165,9 @@ print("without rules:", right, "of", len(H))</pre>
           <tr><td>Not about the business (8)</td><td class="right">1</td><td class="right">0</td><td class="right">2</td><td class="right"><b>5</b></td></tr>
         </tbody>
       </table></div>
-      <p>Here is a good sign. Out of the 40 clearly good or bad headlines, none got flipped to the opposite direction. The three misses were all scored neutral. Missing a signal is a safer mistake than making up the wrong one.</p>
+      <p>Out of the 40 clearly good or bad headlines, none got flipped to the opposite direction. The three misses all came out neutral, which is a safer mistake than the wrong direction.</p>
 
-      <h3>All 8 it got wrong</h3>
+      <h3>The 8 it got wrong</h3>
       <div class="table-wrap"><table>
         <thead><tr><th>Headline</th><th>Truth</th><th>Code said</th><th>Why</th></tr></thead>
         <tbody>
@@ -609,41 +181,12 @@ print("without rules:", right, "of", len(H))</pre>
           <tr><td>Roblox player builds a working calculator inside a game</td><td>not business</td><td>neutral</td><td>Same reason</td></tr>
         </tbody>
       </table></div>
-      <p class="muted small">Fair warning: we wrote the headlines and the labels, and we had already read the word lists. That makes the score look better than it would on headlines we had never seen. Real headlines are messier.</p>
+      <p class="muted small">We wrote the headlines and the labels, and we'd already read the word lists, so this looks better than it would on headlines we'd never seen. Real headlines are messier.</p>
     </div>
 
     <div class="card">
-      <h2>6. Test two: squashing headlines into one number</h2>
-      <p>We gave the real combine function piles of identical, very positive headlines, all half a day old, to see how a small pile compares with a big one.</p>
-      <div class="chart-note" id="chartCombine"></div>
-      <p>This is what we were hoping for. One glowing headline only gets to 0.47. By ten headlines it is at 0.90. Ten glowing headlines plus one executive scandal drops to 0.49, so one serious story really does drag the mood down.</p>
-      <p>Whether 0.47 is the right amount of caution is something we picked, not something we proved. Same goes for recency. A 4 day old headline counts 37 percent as much as a fresh one.</p>
-    </div>
-
-    <div class="card">
-      <h2>7. Test three: reading the AI's answer</h2>
-      <p>We ask the model for JSON, but small models wander off. We gave the parser nine made-up outputs, from perfect to total garbage.</p>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Model output</th><th>Parser result</th><th>Verdict</th></tr></thead>
-        <tbody>
-          <tr><td>Clean JSON, up, +3.2%, medium</td><td>up, 3.2, medium, summary kept</td><td class="up">worked</td></tr>
-          <tr><td>JSON surrounded by chatter, "-4.5%" as text</td><td>down, -4.5, low, summary kept</td><td class="up">worked</td></tr>
-          <tr><td>No JSON, "bearish ... roughly -2%"</td><td>down, -2.0</td><td class="up">worked</td></tr>
-          <tr><td>No JSON, "stable and flat"</td><td>flat</td><td class="up">worked</td></tr>
-          <tr><td>"positive" instead of "up"</td><td>mapped to up</td><td class="up">worked</td></tr>
-          <tr><td>Random garbage</td><td>nothing found, app falls back</td><td class="up">correct failure</td></tr>
-          <tr><td>Empty answer</td><td>nothing found, app falls back</td><td class="up">correct failure</td></tr>
-          <tr><td>"earnings were up but the stock could fall hard"</td><td>down</td><td>right, but only because "fall" is checked before "up". That is luck of the order, not understanding</td></tr>
-          <tr><td>Says up but gives -6%, summary says down</td><td>up, +6.0</td><td class="down">flaw</td></tr>
-        </tbody>
-      </table></div>
-      <p>The last one matters. A model that contradicts itself cannot be trusted on that answer, and the code should probably throw the whole thing out instead of picking a side.</p>
-    </div>
-
-    <div class="card">
-      <h2>8. Test four: the forecast line and shaded range</h2>
-      <p>For this one we made up stocks. Each has 250 days of random daily moves (about 2 percent a day). We ask the real forecast function for 30 days ahead, then make up what "actually" happens and check how it did. We used 1,500 stocks for each scenario.</p>
-      <p>Why fake prices? We did not have any real price history. The upside is that we know exactly how the fake world works, so we can tell if the code does what it claims. The downside is that it tells us nothing about real markets, and we are going to keep repeating that.</p>
+      <h2>7. Test: the forecast on made up stocks</h2>
+      <p>Each made up stock has 250 days of random daily moves (about 2 percent a day). We ask the real forecast function for 30 days ahead, make up what "actually" happens, and check how it did. 1,500 stocks per scenario. Using made up prices means we know exactly how the fake world works, but it also means this says nothing about real markets.</p>
 
       <div class="grid two">
         <div class="chart-note" id="fanCalm"></div>
@@ -665,150 +208,40 @@ print("without rules:", right, "of", len(H))</pre>
         </tbody>
       </table></div>
 
-      <h3>What this shows</h3>
+      <h3>What it shows</h3>
       <ul class="plain-bullets">
-        <li>When the fake world acts the way the code expects (steady jumpiness, independent days), the range does its job. 80.4 percent against 80 promised. That is the win.</li>
+        <li>When the fake world acts the way the code expects, the range does its job. 80.4 percent against 80 promised.</li>
         <li>Across all days it comes up a little short (76 percent), because the jumpiness is guessed from only 60 past moves.</li>
-        <li>When volatility suddenly jumps, the range only catches about 42 percent while still claiming 80. It only knows the past. Real shocks like earnings surprises and scandals are exactly when people lean on the range the most.</li>
-        <li>Direction was right about half the time everywhere, which is a coin flip. In our fake world the news has no link to prices, so there was nothing to find, and it found nothing. That is not a bug, but it also means this test could never have shown the forecast is any good.</li>
-        <li>When we gave it strong news that was pure noise, the average miss got about 28 percent worse than just saying "no change" (10.75 versus 8.40). That is the price of tilting the line on news that does not matter. In real life news sometimes does matter, and this test cannot tell us how often.</li>
+        <li>When volatility suddenly jumps, the range only catches about 42 percent while still claiming 80. It only knows the past.</li>
+        <li>Direction was right about half the time everywhere, which is a coin flip. In the fake world the news has no link to prices, so there was nothing to find. With 1,500 trials a coin flip wobbles by about 1.3 percent, and all five results are within that of 50.</li>
+        <li>Strong news that was pure noise made the average miss about 28 percent worse than saying "no change" (10.75 versus 8.40). That's the cost of tilting the line on news that doesn't matter.</li>
       </ul>
     </div>
 
     <div class="card">
-      <h2>9. Test five: the adapter (not run yet)</h2>
-      <p>This is the test we could not run. analysis-tests/run5_adapter.py runs the same 63 headlines three ways and prints how many each way got right.</p>
-      <ol class="plain-bullets">
-        <li>Keyword scorer and context rules only. No AI.</li>
-        <li>Plain Qwen2.5-3B-Instruct double checking the headlines.</li>
-        <li>Qwen plus our adapter double checking the headlines.</li>
-      </ol>
-      <p>Number 2 is the one that matters. If the adapter does not beat plain Qwen, the training did not help. The AI part uses the real double check function from predict.py with the same prompt the app uses, 16 headlines at a time.</p>
-<pre class="code-block"># check the script works, no model needed
-python run5_adapter.py --dry
-
-# the real test
-cd analysis-tests
-python run5_adapter.py --adapter ../backend/model/moneysprout-26-out</pre>
-      <p>We tested the script itself with --dry, which uses a pretend AI that says neutral to everything. It ran fine and the keyword row matched our saved result (55 of 63). The two model rows need torch, so those are for you to run.</p>
-      <p>Here is how to read what comes out:</p>
-      <ul class="plain-bullets">
-        <li>If the adapter row is not higher than the plain Qwen row, the adapter did not help on this test.</li>
-        <li>If keyword only beats both, the AI check is making things worse and should stay off.</li>
-        <li>Check the line that counts good called bad, or bad called good. That is the worst kind of miss.</li>
-        <li>If lots of AI answers could not be read, the problem is the JSON format and not the headline reading.</li>
-        <li>It shuffles the headlines with a fixed seed. The list is sorted by answer, and 16 good headlines in a row would tip off the model.</li>
-      </ul>
-      <p>Same warning as before. These are headlines we wrote, so it is a small, friendly test. 200 or more real headlines would be better. Here is how much that tightens the range.</p>
-      <pre class="code-block"># same 87 percent, but a bigger test makes the range smaller
-for n in [63, 200, 1000]:
-    k = round(0.873 * n)
-    lo, hi = wilson(k, n)
-    print(n, "headlines -&gt;", round(lo * 100, 1), "to", round(hi * 100, 1))</pre>
-      <pre class="code-block code-out">63 headlines -&gt; 76.9 to 93.4
-200 headlines -&gt; 82.2 to 91.4
-1000 headlines -&gt; 85.1 to 89.2</pre>
+      <h2>8. Test: reading the AI's answer</h2>
+      <p>We ask the model for JSON, but small models wander off. We gave the parser nine made up outputs, from perfect to total garbage.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Model output</th><th>Parser result</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>Clean JSON, up, +3.2%, medium</td><td>up, 3.2, medium, summary kept</td><td class="up">worked</td></tr>
+          <tr><td>JSON surrounded by chatter, "-4.5%" as text</td><td>down, -4.5, low, summary kept</td><td class="up">worked</td></tr>
+          <tr><td>No JSON, "bearish ... roughly -2%"</td><td>down, -2.0</td><td class="up">worked</td></tr>
+          <tr><td>No JSON, "stable and flat"</td><td>flat</td><td class="up">worked</td></tr>
+          <tr><td>"positive" instead of "up"</td><td>mapped to up</td><td class="up">worked</td></tr>
+          <tr><td>Random garbage</td><td>nothing found, app falls back</td><td class="up">correct failure</td></tr>
+          <tr><td>Empty answer</td><td>nothing found, app falls back</td><td class="up">correct failure</td></tr>
+          <tr><td>"earnings were up but the stock could fall hard"</td><td>down</td><td>right, but only because "fall" is checked before "up"</td></tr>
+          <tr><td>Says up but gives -6%, summary says down</td><td>up, +6.0</td><td class="down">flaw</td></tr>
+        </tbody>
+      </table></div>
+      <p>The last one matters. When the model contradicts itself, the code goes with the direction word. It would be safer to throw the whole answer out.</p>
     </div>
 
     <div class="card">
-      <h2>10. The math behind it</h2>
-      <p>Not fancy proofs, just the arithmetic, so you can check our work.</p>
-      <p>Where 31.7 percent comes from: the biggest group in the headline set has 20 of 63 headlines, and 20 divided by 63 is 31.7 percent. Always guessing that group scores exactly that.</p>
-      <p>The 77 to 93 percent range is the Wilson 95 percent interval. It shows what the real accuracy could be.</p>
-      <pre class="code-block"># wilson interval, a range for what the real accuracy could be
-def wilson(k, n, z=1.96):
-    p = k / n
-    d = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / d
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return centre - half, centre + half
-
-lo, hi = wilson(55, 63)
-print("55 of 63 -&gt;", round(lo * 100, 1), "to", round(hi * 100, 1))</pre>
-      <pre class="code-block code-out">55 of 63 -&gt; 76.9 to 93.4</pre>
-      <p>Why the range is 1.28 times sigma times the square root of k: if daily moves are independent with standard deviation sigma, the total move over k days has a standard deviation of sigma times the square root of k. A two-sided 80 percent range uses 1.28. So the formula is exactly right when moves are independent, bell-shaped and the jumpiness stays put. The simulation agrees when those things hold (80.4 percent) and falls apart when they do not (41.7 percent).</p>
-      <p>Why direction near 50 percent is nothing to worry about: with 1,500 trials a coin flip wobbles by about this much:</p>
-      <pre class="code-block"># with 1500 trials a coin flip wobbles about this much
-print(round(math.sqrt(0.5 * 0.5 / 1500) * 100, 2), "percent")</pre>
-      <pre class="code-block code-out">1.29 percent</pre>
-      <p>Our five results were 49.3, 51.6, 49.3, 50.6 and 49.4. All of them are within about 1.3 wobbles of 50, so they look like coin flips, which is what fake data should give.</p>
-    </div>
-
-    <div class="card">
-      <h2>11. What could go wrong</h2>
-      <h3>Things we saw in our tests</h3>
-      <ul class="plain-bullets">
-        <li>Words with two meanings fool the word lists ("fall" the season, for example).</li>
-        <li>A good word and a bad word in one headline cancel out, so real bad news can score neutral.</li>
-        <li>"better than expected" slips by because "better" is not on the list.</li>
-        <li>Non-business headlines only get ignored if they contain one of the listed entertainment words.</li>
-        <li>"fined" is not on the serious list, so a regulator fine does not get the extra push down.</li>
-        <li>If the AI's direction and number disagree, the code goes with the direction word.</li>
-        <li>The shaded range is way too narrow after a sudden jump in volatility.</li>
-        <li>Tilting the line on news that does not matter makes it worse than "no change".</li>
-        <li>Strong news takes the place of the trend instead of adding to it, so on a stock that is already rising fast, good news can lower the forecast a hair.</li>
-      </ul>
-      <h3>Things we spotted in the code but did not test</h3>
-      <ul class="plain-bullets">
-        <li>Daily forecasts skip weekends but not market holidays.</li>
-        <li>Repeats are caught using the first 70 letters of a title, so reworded copies count again.</li>
-        <li>Google results are kept if the title has the company name, so a name like Apple can pull in unrelated stories. Short tickers like F are skipped for that matching.</li>
-        <li>When the AI says good or bad, the strength is set to at least 0.5 in that direction, no matter what the earlier score was.</li>
-        <li>News is hours or days old by the time it is scored, and the price may have already reacted. The code has no way to know.</li>
-        <li>The three data feeds are unofficial and could change or block us at any time.</li>
-      </ul>
-      <h3>About the adapter</h3>
-      <ul class="plain-bullets">
-        <li>We have not measured accuracy yet. Test five is how to fix that.</li>
-        <li>One pass over about 10K lines at a fairly high learning rate (0.0002) is a light touch. It might have only learned the answer format and not much else, and we cannot tell until it is tested.</li>
-        <li>The FinGPT set only covers the 30 Dow companies for one year (May 2023 to May 2024). The app lets people pick any stock, so for most other companies the adapter may have seen much less.</li>
-        <li>The training prompts and the app prompts are probably different. The app asks for a verdict per headline and a JSON outlook. If the training data was written in another style, the adapter may help less than it should. We cannot check, because the training prompt format was not saved with the adapter.</li>
-        <li>Some of the training labels were written by a model, and those can be wrong or inconsistent. Our adapter learns those mistakes too.</li>
-        <li>The headline double check only looks at the top 16 headlines. The other 29 are scored by keywords alone.</li>
-        <li>The AI gets to see the stats line (the simple trend estimate) in its prompt, so its answer can lean toward it.</li>
-      </ul>
-    </div>
-
-    <div class="card">
-      <h2>12. What these results do and do not tell us</h2>
-      <p>This is the most important section, so we are going to be straight with you.</p>
-
-      <h3>What they are fine for</h3>
-      <ul class="plain-bullets">
-        <li>Using the tool to help you read the news, so you can see which headlines look serious and read those first.</li>
-        <li>Using it as a demo that shows how news and price trends can turn into a rough picture.</li>
-        <li>Practicing with pretend money, which is what the app is for.</li>
-      </ul>
-
-      <h3>What they are not good for</h3>
-      <ul class="plain-bullets">
-        <li>Buying or selling real shares because of the forecast. We never compared it to real prices, so we have no proof it predicts anything in a real market.</li>
-        <li>Treating headline accuracy as price accuracy. 87 percent on 63 hand-picked headlines says it can roughly read a headline. It does not say prices move the way headlines suggest. Those are two different questions, and we only answered the first one.</li>
-        <li>Trusting the AI's percent change. We have not tested the adapter.</li>
-        <li>Using the shaded range as a safe limit or stop-loss. It only caught about 42 percent in the shock test while claiming 80. It fails right when a surprise hits.</li>
-        <li>Believing it beats just holding the stock. We never compared it to buy-and-hold, and we never counted trading costs or taxes.</li>
-        <li>Deciding how much to invest. A small sample and no real-price testing cannot answer that for anyone.</li>
-      </ul>
-
-      <h3>What we would need to trust it more</h3>
-      <ul class="plain-bullets">
-        <li>Run run5_adapter.py and put the real adapter numbers on this page.</li>
-        <li>A backtest on real past prices, with lots of stocks over several years, using only headlines that existed at the time.</li>
-        <li>Test on data the code never saw while we were building it, and compare against simple baselines: buy-and-hold, and the price trend alone with no news.</li>
-        <li>Count trading costs, and check that the results are bigger than luck.</li>
-        <li>Keep the test headlines out of the training data. Ours were hand-written, so they are safe, but a bigger test set from real feeds would need a check.</li>
-      </ul>
-      <p class="muted small">This is a class project, not financial advice. Nothing on this page is telling you to buy or sell anything.</p>
-    </div>
-
-    <div class="card">
-      <h2>13. Does it beat a simple baseline?</h2>
-      <p>A baseline is the simplest guess you could make, like always picking the most common answer. If 87 out of 100 emails are not spam, a "model" that says "not spam" every time is already 87 percent right. So a score only means something when you put the baseline score right next to it. That is what analysis-tests/baseline.py does.</p>
-      <pre class="code-block"># run it from the analysis-tests folder
-python baseline.py
-python baseline.py --quick   # fewer fake stocks, faster</pre>
+      <h2>9. Does it beat a baseline?</h2>
+      <p>A baseline is the dumbest reasonable guess. If 87 out of 100 emails aren't spam, a "model" that always says "not spam" is already 87 percent right, so a score only means something next to its baseline. analysis-tests/baseline.py does this.</p>
       <h3>Headlines</h3>
-      <p>Baseline 1 always says "good" (the biggest group is a tie between good and bad, 20 each, so we picked good). Baseline 2 is the plain keyword scorer with no context rules. The model is the keyword scorer plus the context rules.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>What</th><th class="right">Right</th><th class="right">Score</th><th class="right">Range</th></tr></thead>
         <tbody>
@@ -817,9 +250,9 @@ python baseline.py --quick   # fewer fake stocks, faster</pre>
           <tr><td>Model: keywords + context rules</td><td class="right"><b>55 of 63</b></td><td class="right"><b>87.3%</b></td><td class="right">77 to 93%</td></tr>
         </tbody>
       </table></div>
-      <p>The model beats the dumbest guess by about 56 points, and the context rules add about 8 points on top of the plain keywords. The ranges for baseline 2 and the model overlap, so with only 63 headlines we cannot say for sure the rules help. The AI adapter gets compared the same way in run5_adapter.py, but we have not run that one yet.</p>
-      <h3>The forecast line</h3>
-      <p>The baseline here is "no change", the price just stays where it is. We measure how far off the end price was after 30 days (smaller is better), on 1,000 fake stocks per row.</p>
+      <p>The model beats always guessing by about 56 points. The context rules add about 8 points over plain keywords, but the ranges overlap, so with 63 headlines we can't say for sure the rules help.</p>
+      <h3>Forecast line</h3>
+      <p>The baseline here is "no change". We measure how far off the end price was after 30 days (smaller is better), on 1,000 made up stocks per row.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Scenario</th><th class="right">Baseline miss</th><th class="right">Model miss</th><th class="right">Direction right</th></tr></thead>
         <tbody>
@@ -828,43 +261,55 @@ python baseline.py --quick   # fewer fake stocks, faster</pre>
           <tr><td>Strong good news (just noise)</td><td class="right">8.33%</td><td class="right">10.74%</td><td class="right">49.6%</td></tr>
         </tbody>
       </table></div>
-      <p>Here is the honest part. The forecast does <b>not</b> beat "no change" on fake stocks. It ties or does a little worse, and direction is a coin flip. The fake world has no link between news and price, so that is what we would expect, but it also means we have no proof the forecast adds anything. Proving it would take a baseline test on real past prices.</p>
+      <p>The forecast does <b>not</b> beat "no change" on made up stocks. It ties or does a little worse, and direction is a coin flip. The fake world has no link between news and price, so that's what we'd expect, but it means we can't claim the forecast adds anything.</p>
     </div>
 
     <div class="card">
-      <h2>14. Results summary</h2>
+      <h2>10. Results</h2>
       <div class="table-wrap"><table>
         <thead><tr><th>Test</th><th>Sample</th><th>Result</th><th>Compared to</th></tr></thead>
         <tbody>
-          <tr><td>Headline reading, keyword scorer with rules</td><td>63 headlines</td><td>87.3% right (55 of 63), range 77 to 93%</td><td>31.7% by always guessing the biggest group</td></tr>
-          <tr><td>Same, rules turned off (baseline 2)</td><td>63 headlines</td><td>79.4% right (50 of 63)</td><td>The rules add about 8 points</td></tr>
+          <tr><td>Headline reading, keywords + rules</td><td>63 headlines</td><td>87.3% right (55 of 63), range 77 to 93%</td><td>31.7% by always guessing the biggest group</td></tr>
+          <tr><td>Same, rules off</td><td>63 headlines</td><td>79.4% right (50 of 63)</td><td>Rules add about 8 points</td></tr>
           <tr><td>Good vs bad headlines only</td><td>40 headlines</td><td>37 right, 3 scored neutral, 0 flipped</td><td>-</td></tr>
           <tr><td>Combining headlines</td><td>Real function</td><td>1 headline 0.47, 10 headlines 0.90, plus one scandal 0.49</td><td>-</td></tr>
           <tr><td>Reading AI answers</td><td>9 cases</td><td>7 handled well, 1 right by luck, 1 flawed</td><td>-</td></tr>
-          <tr><td>Shaded range, steady volatility</td><td>1,500 fake stocks</td><td>80.4% hit on the last day</td><td>Promised 80%</td></tr>
-          <tr><td>Shaded range, volatility shock</td><td>1,500 fake stocks</td><td>41.7% hit on the last day</td><td>Promised 80%</td></tr>
-          <tr><td>Direction, any scenario</td><td>1,500 fake stocks each</td><td>49 to 52% right</td><td>50% for a coin flip</td></tr>
-          <tr><td>Forecast vs "no change" baseline</td><td>1,000 fake stocks per row</td><td>Ties or loses, direction 49.6 to 49.7%</td><td>Run baseline.py</td></tr>
-          <tr><td>Adapter files and loader check</td><td>1 adapter</td><td>504 tensors, 29.9M numbers, found as adapter_causal on Qwen2.5-3B-Instruct</td><td>-</td></tr>
-          <tr><td>Adapter accuracy</td><td>-</td><td>Not measured yet</td><td>Run run5_adapter.py</td></tr>
-          <tr><td>Live feeds, real prices</td><td>-</td><td>Not tested</td><td>-</td></tr>
+          <tr><td>Shaded range, steady volatility</td><td>1,500 made up stocks</td><td>80.4% hit on the last day</td><td>Promised 80%</td></tr>
+          <tr><td>Shaded range, volatility shock</td><td>1,500 made up stocks</td><td>41.7% hit on the last day</td><td>Promised 80%</td></tr>
+          <tr><td>Direction, any scenario</td><td>1,500 made up stocks each</td><td>49 to 52% right</td><td>50% for a coin flip</td></tr>
+          <tr><td>Forecast vs "no change"</td><td>1,000 made up stocks per row</td><td>Ties or loses, direction 49.6 to 49.7%</td><td>-</td></tr>
         </tbody>
       </table></div>
     </div>
 
     <div class="card">
-      <h2>15. How we made this, and what to double check</h2>
+      <h2>11. What went wrong</h2>
       <ul class="plain-bullets">
-        <li>Source code: backend/services/predict.py, news.py, market.py and routers/stocks.py from this project.</li>
-        <li>Tests: Python using the real functions from predict.py, run offline. The 63 headlines, their labels and the simulation settings are in the analysis-tests folder (headlines.py, run1 to run4). examples.py makes every code block on this page, baseline.py is the baseline comparison, and run5_adapter.py is the adapter test.</li>
-        <li>We wrote the headlines, their labels and the fake price worlds ourselves. None of it is real news or real prices.</li>
-        <li>The adapter facts came from reading adapter_config.json, training_args.bin (read safely, nothing in it was run) and the safetensors header. The training data list and the 10K line count came from the team, and we did not re-download the datasets.</li>
-        <li>If you re-run the simulations, the numbers can shift a little with the random seed. The headline numbers should match exactly.</li>
+        <li>Words with two meanings fool the word lists ("fall" the season, for example).</li>
+        <li>A good word and a bad word in one headline cancel out, so real bad news can score neutral.</li>
+        <li>"better than expected" slips by because "better" isn't on the list.</li>
+        <li>Non-business headlines only get ignored if they contain one of the listed entertainment words.</li>
+        <li>"fined" isn't on the serious list, so a regulator fine doesn't get the extra push down.</li>
+        <li>If the AI's direction and number disagree, the code goes with the direction word.</li>
+        <li>The shaded range is way too narrow after a sudden jump in volatility.</li>
+        <li>Tilting the line on news that doesn't matter makes it worse than "no change".</li>
+        <li>Strong news replaces the trend instead of adding to it, so on a stock that's already rising fast, good news can lower the forecast a hair.</li>
+      </ul>
+      <p class="muted small">This is a hackathon project, not financial advice. The forecast was only tested on made up prices, so it's for learning and shouldn't be used to trade real money.</p>
+    </div>
+
+    <div class="card">
+      <h2>12. How we tested</h2>
+      <ul class="plain-bullets">
+        <li>Source: backend/services/predict.py, news.py, market.py and routers/stocks.py.</li>
+        <li>Tests are Python scripts that call the real functions from predict.py, run offline. The 63 headlines and the simulation settings are in the analysis-tests folder (headlines.py, run1 to run4). examples.py makes the code blocks on this page and baseline.py does the baseline comparison.</li>
+        <li>We wrote the headlines, the labels and the made up price worlds ourselves. None of it is real news or real prices.</li>
+        <li>If you rerun the simulations the numbers can shift a little with the random seed. The headline numbers should match exactly.</li>
       </ul>
     </div>
   </div>
 
-  <script src="js/app.js?v=13"></script>
-  <script src="js/code-analysis.js?v=13"></script>
+  <script src="js/app.js?v=14"></script>
+  <script src="js/code-analysis.js?v=14"></script>
 </body>
 </html>

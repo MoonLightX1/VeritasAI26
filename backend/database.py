@@ -123,7 +123,7 @@ def now():
     return dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
-# rules the database enforces itself, even if some code path forgets to check
+# the database enforces these itself, even if the code forgets
 TRIGGERS = """
 CREATE TRIGGER IF NOT EXISTS cash_not_negative_ins BEFORE INSERT ON portfolios
 WHEN NEW.cash_cents < 0
@@ -160,13 +160,13 @@ def init_db():
     conn.executescript(SCHEMA)
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(TRIGGERS)
-    # older databases do not have the deposit column yet, add it
+    # add the deposit column to older databases
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(portfolios)").fetchall()]
     if "deposited_cents" not in cols:
         conn.execute("ALTER TABLE portfolios ADD COLUMN deposited_cents INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
-    # only the owner should be able to read the database file (does nothing on windows, that is fine)
+    # owner only (does nothing on windows)
     for suffix in ("", "-wal", "-shm"):
         try:
             os.chmod(DB_PATH + suffix, 0o600)
@@ -174,7 +174,7 @@ def init_db():
             pass
 
 
-# fastapi dependency, gives each request its own connection
+# one connection per request
 def get_db():
     conn = connect()
     try:

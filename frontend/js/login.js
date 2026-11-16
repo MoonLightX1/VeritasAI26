@@ -9,7 +9,7 @@ function showErr(msg) {
   errBox.classList.remove('hidden');
 }
 
-// if already logged in just skip ahead
+// already logged in, skip ahead
 api('/api/auth/me', { noRedirect: true }).then(function () {
   location.href = 'dashboard';
 }).catch(function () {});

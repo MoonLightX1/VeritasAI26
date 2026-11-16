@@ -1,5 +1,4 @@
-# makes a clean copy of the project, skips whatever .gitignore says
-# run it from anywhere, it uses the folder this script is in
+# copies the project and skips whatever .gitignore says
 
 $Source = $PSScriptRoot
 $Dest   = Join-Path (Split-Path $Source -Parent) "MoneySprout-copy"
@@ -48,7 +47,6 @@ function Test-Ignored($relativePath)
             }
             else {
                 # any folder with that name, no matter how deep
-                # (everything but the last part has to be a folder, the last one too if it is one)
                 if ($parts -contains $dir) { return $true }
             }
             continue

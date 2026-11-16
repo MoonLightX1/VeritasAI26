@@ -1,16 +1,16 @@
-// stock chart drawn on a canvas, no libraries
-// shapes are stored as (time, price) so they stick to the chart when you zoom or pan
+// stock chart on a canvas, no libraries
+// shapes are saved as (time, price) so they stay put when you zoom
 
 class StockChart {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.data = [];
-    this.realN = 0; // how many of the points are real prices, the rest are predicted
+    this.realN = 0; // real points, the rest are predicted
     this.pred = [];
     this.intraday = false;
-    this.tz = 'UTC'; // intraday labels use the exchange timezone
-    this.v0 = 0; // first visible index (can be fractional)
+    this.tz = 'UTC'; // exchange timezone
+    this.v0 = 0; // first visible index
     this.v1 = 1; // last visible index
     this.tool = 'none';
     this.color = '#5b6cd6';
@@ -27,7 +27,7 @@ class StockChart {
 
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
-    // redraw when they flip light / dark
+    // redraw on theme change
     window.addEventListener('themechange', () => this.draw());
     this.bind();
     this.resize();
@@ -47,26 +47,26 @@ class StockChart {
     this.draw();
   }
 
-  // swap in fresh live data without throwing away the zoom
+  // new data, keep the zoom
   refreshData(points) {
     const old = this.data.length;
     const atEnd = this.v1 >= old - 1.5;
     const width = this.v1 - this.v0;
-    // keep the predicted part, minus anything the real prices have caught up with
+    // keep predicted part minus what real prices caught up to
     const lastT = points.length ? points[points.length - 1].t : 0;
     this.pred = this.pred.filter(function (p) { return p.t > lastT; });
     this.realN = points.length;
     this.data = points.concat(this.pred);
     if (!old || points.length < 2) { this.v0 = 0; this.v1 = Math.max(1, this.data.length - 1); }
     else if (atEnd) {
-      // stay glued to the newest point
+      // stick to the newest point
       this.v1 = this.data.length - 1;
       this.v0 = Math.max(0, this.v1 - width);
     }
     this.draw();
   }
 
-  // predicted points: [{t, c, lo, hi}], drawn after the real prices as a dashed line with a shaded range
+  // predicted points [{t, c, lo, hi}], dashed line and shaded range
   setPrediction(future) {
     this.pred = future.map(function (f) { return { t: f.t, c: f.c, lo: f.lo, hi: f.hi, v: 0, p: true }; });
     this.data = this.data.slice(0, this.realN).concat(this.pred);
@@ -119,7 +119,7 @@ class StockChart {
   get plotBottom() { return this.h - this.pad.b; }
   get priceBottom() { return this.plotBottom - (this.plotBottom - this.pad.t) * this.volFrac - 6; }
 
-  // index <-> time, linear between points and extended past the ends
+  // index <-> time
   timeToIdx(t) {
     const d = this.data;
     const n = d.length;
@@ -190,7 +190,7 @@ class StockChart {
     return d.toLocaleDateString('en-US', Object.assign({ month: 'short', day: 'numeric', year: 'numeric' }, opts));
   }
 
-  // grab the current theme colors from css
+  // theme colors from css
   colors() {
     const css = getComputedStyle(document.documentElement);
     const get = (n, d) => css.getPropertyValue(n).trim() || d;
@@ -282,7 +282,7 @@ class StockChart {
   drawLine() {
     const ctx = this.ctx;
     const r = this.visibleRange();
-    // the colour and the solid line only look at real prices
+    // color and solid line use real prices only
     const realEnd = Math.min(r[1], this.realN - 1);
     if (realEnd < r[0]) return;
     const first = this.data[r[0]].c;
@@ -313,7 +313,7 @@ class StockChart {
   drawPrediction() {
     if (!this.pred.length) return;
     const ctx = this.ctx;
-    const a = this.realN - 1; // last real point, the prediction starts from here
+    const a = this.realN - 1; // last real point
     const b = this.data.length - 1;
     const startC = this.data[a].c;
     const endC = this.data[b].c;
@@ -324,7 +324,7 @@ class StockChart {
     ctx.rect(this.pad.l, 0, this.pw, this.h);
     ctx.clip();
 
-    // shaded range, starts as a point and fans out
+    // shaded range, fans out
     ctx.beginPath();
     ctx.moveTo(this.xOfIdx(a), this.yOfPrice(startC));
     for (let i = a + 1; i <= b; i++) ctx.lineTo(this.xOfIdx(i), this.yOfPrice(this.data[i].hi));
@@ -333,7 +333,7 @@ class StockChart {
     ctx.fillStyle = this.rgba(col, 0.14);
     ctx.fill();
 
-    // divider between what happened and what we think will happen
+    // divider between real and predicted
     const nx = this.xOfIdx(a);
     ctx.strokeStyle = this.c.muted;
     ctx.lineWidth = 1;
@@ -408,14 +408,14 @@ class StockChart {
     ctx.restore();
   }
 
-  // turns #rrggbb into rgba(...) (the css colors are always hex)
+  // #rrggbb to rgba
   rgba(hex, a) {
     const h = hex.replace('#', '');
     const n = parseInt(h.length === 3 ? h.split('').map(function (x) { return x + x; }).join('') : h, 16);
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  // saves the chart as a png, adds a title on top and a note at the bottom
+  // save as png
   toPNG(title, subtitle, filename) {
     this.hover = null;
     this.draw();
@@ -439,7 +439,7 @@ class StockChart {
     o.drawImage(src, 0, head);
     o.fillStyle = this.c.muted;
     o.font = 11 * dpr + 'px "Inter Variable", system-ui, sans-serif';
-    o.fillText('MoneySprout, data from Yahoo Finance, may be delayed. Practice only.', 14 * dpr, out.height - 10 * dpr);
+    o.fillText('MoneySprout, data from Yahoo Finance, may be delayed. Demo only.', 14 * dpr, out.height - 10 * dpr);
     out.toBlob(function (blob) {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
@@ -537,7 +537,7 @@ class StockChart {
     }
   }
 
-  // distance from a pixel to a shape, used by the eraser
+  // distance to a shape, for the eraser
   hitDistance(s, x, y) {
     const segDist = function (ax, ay, bx, by) {
       const dx = bx - ax, dy = by - ay;

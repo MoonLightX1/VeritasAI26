@@ -1,4 +1,4 @@
-// landing page: theme button, and the preview logo falls back to letters if it can not load
+// landing page, theme button and logo fallback
 document.getElementById('themeSlot').innerHTML = themeButton();
 document.addEventListener('error', function (e) {
   const im = e.target;

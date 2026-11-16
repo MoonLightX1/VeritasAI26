@@ -1,6 +1,4 @@
-# does our model beat a simple baseline?
-# a baseline is the dumbest guess that still makes sense, like always saying the most common answer
-# we print the baseline score right next to the model score so you can see what the model really adds
+# does the model beat a dumb baseline (like always guessing the most common answer)?
 #
 # run it:  python baseline.py
 # faster:  python baseline.py --quick
@@ -17,7 +15,7 @@ NAMES = {"positive": "good", "negative": "bad", "neutral": "neutral"}
 
 
 def wilson(k, n, z=1.96):
-    # a range for what the real score could be
+    # confidence range
     p = k / n
     d = 1 + z * z / n
     centre = (p + z * z / (2 * n)) / d
@@ -33,7 +31,7 @@ def show(name, right, n):
 # part 1: reading headlines
 # baseline 1: always say the biggest group
 # baseline 2: the plain keyword scorer, no context rules
-# model: keyword scorer plus the context rules (what the app uses without the AI)
+# model: keywords plus context rules
 def part_headlines():
     print("headline test (%d headlines we wrote and labeled)" % len(H))
     counts = Counter(truth for _, truth in H)

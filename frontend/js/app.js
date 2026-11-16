@@ -2,7 +2,7 @@
 
 async function api(path, options) {
   options = options || {};
-  // the server only accepts changes that carry this header, so other sites cannot fake them
+  // server rejects changes without this header
   const init = { method: options.method || 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'moneysprout' } };
   if (options.body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
@@ -17,7 +17,7 @@ async function api(path, options) {
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
-    // not logged in, send them to login (but not if we are already on a public page)
+    // not logged in, go to login
     if (res.status === 401 && !options.noRedirect) {
       location.href = 'login';
     }
@@ -48,7 +48,7 @@ function pct(n) {
 
 function cls(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : ''); }
 
-// makes text safe to drop into html, including inside "quotes" of an attribute
+// escape text for html
 function esc(s) {
   return (s === null || s === undefined ? '' : String(s))
     .replace(/&/g, '&amp;')
@@ -58,7 +58,7 @@ function esc(s) {
     .replace(/'/g, '&#39;');
 }
 
-// only lets real https links through, anything else becomes a dead link
+// https links only
 function safeUrl(u) {
   return /^https:\/\//i.test(String(u || '')) ? String(u) : '#';
 }
@@ -86,7 +86,7 @@ function toast(msg, isErr) {
 
 // tiny sparkline on a canvas, just a line
 function drawSpark(canvas, values) {
-  canvas._vals = values; // keep them so we can redraw on theme change
+  canvas._vals = values; // for redraw on theme change
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 100;
   const h = canvas.clientHeight || 36;
@@ -120,7 +120,7 @@ function logoHtml(ticker, big) {
   return '<div class="logo img' + (big ? ' big' : '') + '"><img src="/api/stocks/logo/' + encodeURIComponent(ticker) + '" alt="" data-t="' + esc(ticker) + '"></div>';
 }
 
-// if a logo does not load, go back to the ticker letters
+// logo failed, show the ticker letters
 document.addEventListener('error', function (e) {
   const im = e.target;
   if (!im || im.tagName !== 'IMG' || !im.dataset.t) return;
@@ -139,8 +139,7 @@ const NAV = [
   ['settings', 'Settings']
 ];
 
-// builds the top bar around the page content
-// every logged in page calls this first
+// top bar, every logged in page calls this first
 async function initShell(active) {
   const me = await api('/api/auth/me');
   window.ME = me;
@@ -155,7 +154,7 @@ async function initShell(active) {
 
   shell.innerHTML =
     '<header class="topbar">' +
-      '<a class="brand" href="dashboard">Money<span>Sprout</span></a>' +
+      '<a class="brand" href="dashboard"><img class="brand-icon logo-light" src="/assets/moneysprout-icon.png" alt=""><img class="brand-icon logo-dark" src="/assets/moneysprout-icon-dark.png" alt="">Money<span>Sprout</span></a>' +
       '<nav class="nav">' + links + '</nav>' +
       '<div class="search"><input type="text" id="globalSearch" placeholder="Search a company" autocomplete="off">' +
       '<div class="suggest hidden" id="globalSuggest"></div></div>' +
@@ -184,7 +183,7 @@ async function initShell(active) {
   return me;
 }
 
-// says if the market is open or closed, shows in the top bar on every page
+// market open/closed badge
 async function loadMarketPill() {
   const el = document.getElementById('mktPill');
   if (!el) return;
@@ -193,7 +192,7 @@ async function loadMarketPill() {
     el.dataset.s = !m.known ? 'unknown' : (m.open ? 'open' : 'closed');
     document.getElementById('mktTxt').textContent = !m.known ? 'Market status unknown' : (m.open ? 'Market open' : 'Market closed');
   } catch (e) {
-    // quiet, it will try again in a minute
+    // quiet, tries again in a minute
   }
 }
 
@@ -202,7 +201,7 @@ function setWallet(cash) {
   if (el) el.textContent = money(cash);
 }
 
-// search box in the top bar, shows suggestions as you type
+// search box with suggestions
 function setupSearch() {
   const input = document.getElementById('globalSearch');
   const box = document.getElementById('globalSuggest');
@@ -240,7 +239,7 @@ function setupSearch() {
   });
 }
 
-// small line that says how fresh a price is
+// how fresh a price is
 function liveLabel(q) {
   const t = new Date(q.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   let txt = 'Updated ' + t;
@@ -249,16 +248,16 @@ function liveLabel(q) {
 }
 
 function demoBanner() {
-  return '<div class="banner">This is pretend money, and none of it is financial advice. Prices come from Yahoo Finance and can be about 15 minutes late.</div>';
+  return '<div class="banner">This is a demo and none of it is financial advice. Prices come from Yahoo Finance and can be about 15 minutes late.</div>';
 }
 
-// warning that goes above anything the ai wrote
+// warning above anything the ai wrote
 function aiWarning() {
   return '<div class="banner warn-ai"><b>Heads up:</b> an AI wrote this after reading news headlines. ' +
     'It can be wrong or out of date, so treat it as a guess and not advice. Please do not use it for real money choices.</div>';
 }
 
-// loading placeholders, grey bars that pulse a little
+// loading placeholders
 function skeletonRows(n) {
   let out = '';
   for (let i = 0; i < n; i++) out += '<div class="skel skel-row"></div>';
@@ -271,7 +270,7 @@ function skeletonCards(n) {
   return out;
 }
 
-// puts a button in a loading state, call the returned function to undo it
+// button loading state, call the returned function to undo
 function busy(btn, text) {
   const old = btn.innerHTML;
   btn.disabled = true;

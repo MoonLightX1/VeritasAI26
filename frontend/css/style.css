@@ -1,4 +1,4 @@
-/* fonts live in /fonts so the strict CSP still allows them */
+/* fonts are local because of the csp */
 @font-face {
   font-family: "Inter Variable";
   font-style: normal;
@@ -45,7 +45,7 @@
   --on-up: #ffffff;
   --on-down: #ffffff;
 
-  /* design system: everything below uses these, nothing is a one-off number */
+  /* spacing and sizes, reuse these */
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -128,7 +128,7 @@ p { margin: 0 0 var(--s-3); text-wrap: pretty; }
 .right { text-align: right; }
 .nowrap { white-space: nowrap; }
 .mono { font-family: var(--mono); font-size: 0.9em; }
-/* tickers are plain sans, mono is only for code */
+/* mono is only for code */
 .ticker { color: var(--muted); font-size: var(--t-md); font-weight: 500; letter-spacing: 0.02em; }
 
 /* buttons */
@@ -189,7 +189,7 @@ textarea { resize: vertical; min-height: 140px; }
 .checkrow input { width: auto; margin-top: 4px; }
 .checkrow label { margin: 0; font-weight: 400; }
 
-/* cards. inner radius = outer radius minus the padding, never below 0 */
+/* cards, inner radius = outer minus padding */
 .card {
   --pad: var(--s-4);
   background: var(--card);
@@ -207,7 +207,7 @@ textarea { resize: vertical; min-height: 140px; }
 .grid.four { grid-template-columns: repeat(4, 1fr); }
 .grid > .card + .card { margin-top: 0; }
 
-/* page sections, spacing does the grouping instead of boxes */
+/* page sections */
 .block-gap { margin-top: var(--s-6); }
 
 .stat .label { font-size: var(--t-sm); color: var(--muted); }
@@ -215,7 +215,7 @@ textarea { resize: vertical; min-height: 140px; }
 .stat .sub { font-size: var(--t-sm); }
 .stat .desc { font-size: var(--t-sm); color: var(--muted); margin-top: 6px; }
 
-/* top summary row, the first number is the main one */
+/* summary row */
 .summary { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--s-4); align-items: stretch; }
 .summary .stat { padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-outer); background: var(--card); }
 .summary .stat.main { border: none; background: none; padding: 0 var(--s-4) 0 0; align-self: end; }
@@ -273,6 +273,8 @@ textarea { resize: vertical; min-height: 140px; }
   letter-spacing: -0.02em;
 }
 .brand span { color: var(--accent); }
+.brand { display: inline-flex; align-items: center; }
+.brand-icon { height: 26px; width: auto; display: block; margin-right: var(--s-2); }
 .nav { display: flex; gap: var(--s-1); flex-wrap: wrap; }
 .nav a {
   padding: var(--s-1) var(--s-2);
@@ -347,7 +349,7 @@ td.right, th.right { text-align: right; }
   flex-shrink: 0;
 }
 .logo.big { width: 64px; height: 48px; font-size: var(--t-sm); }
-/* real logos sit in a white square so dark logos still show in dark mode */
+/* logos sit on white so dark ones show in dark mode */
 .logo.img { width: 36px; height: 36px; background: #fff; padding: 5px; overflow: hidden; }
 .logo.img.big { width: 56px; height: 56px; padding: 8px; }
 .logo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
@@ -356,7 +358,7 @@ td.right, th.right { text-align: right; }
 .stock-card { text-decoration: none; color: inherit; display: block; }
 .stock-card:hover { border-color: var(--accent); }
 
-/* stock page, the chart is the main thing so it gets the room */
+/* stock page */
 .stock-head { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: center; justify-content: space-between; margin-bottom: var(--s-5); }
 .stock-head .name { display: flex; gap: var(--s-4); align-items: center; }
 .price { font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.01em; }
@@ -397,7 +399,7 @@ td.right, th.right { text-align: right; }
 .tone { display: inline-block; min-width: 3.2em; text-align: center; border-radius: var(--r-ctl); padding: 1px 8px; font-size: var(--t-sm); font-weight: 600; border: 1px solid var(--line); }
 .tone.pos { color: var(--up); border-color: var(--up); }
 .tone.neg { color: var(--down); border-color: var(--down); }
-/* the little ! on serious headlines, a small circle so it matches the text next to it */
+/* the ! on serious headlines */
 .tone.flag { min-width: 0; width: 1.7em; height: 1.7em; padding: 0; line-height: calc(1.7em - 2px); border-radius: 50%; flex: none; }
 .chart-box { position: relative; width: 100%; height: 540px; background: var(--card); }
 .chart-box canvas { width: 100%; height: 100%; display: block; touch-action: none; }
@@ -472,11 +474,18 @@ input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid var
   display: grid; grid-template-columns: 1fr; gap: var(--s-6);
   max-width: 1100px; margin: 0 auto; padding: var(--s-6) var(--s-5) var(--s-5);
 }
-.hero-copy h1 { font-size: var(--t-3xl); line-height: 1.1; letter-spacing: -0.03em; margin-bottom: var(--s-4); max-width: 18ch; }
-.hero-copy p.lead { font-size: var(--t-lg); color: var(--muted); max-width: 46ch; }
+.hero-top { display: grid; grid-template-columns: 220px 1fr; gap: var(--s-6); align-items: center; }
+.hero-logo { width: 220px; height: auto; display: block; }
+.auth-logo { width: 96px; height: auto; display: block; }
+.logo-dark { display: none; }
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
+.hero-copy .actions { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.hero-copy h1 { font-size: var(--t-2xl); line-height: 1.15; letter-spacing: -0.02em; margin-bottom: var(--s-3); max-width: 24ch; }
+.hero-copy p.lead { font-size: var(--t-md, 1rem); color: var(--muted); max-width: 54ch; }
 .hero-copy .actions { margin-top: var(--s-5); }
 
-/* the real stock page, drawn with the same classes, so the landing page shows the product */
+/* landing page preview */
 .preview { --pad: var(--s-5); padding: var(--pad); }
 .preview .stock-head { margin-bottom: var(--s-4); }
 .preview .chart-box { height: auto; }
@@ -497,11 +506,6 @@ input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid var
 .plain-list li { display: grid; grid-template-columns: 180px 1fr; gap: var(--s-4); }
 .plain-list b { font-weight: 650; }
 .plain-list span { color: var(--muted); max-width: 60ch; }
-.safety { --pad: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-outer); padding: var(--pad); background: var(--card); }
-.safety ul { margin: var(--s-2) 0 0; padding-left: 20px; }
-.safety li { margin-bottom: var(--s-1); }
-.cta { padding: var(--s-6) var(--s-5); max-width: 1100px; margin: 0 auto; }
-.cta h2 { font-size: var(--t-2xl); margin-bottom: var(--s-4); }
 .footer { border-top: 1px solid var(--line); padding: var(--s-4) max(var(--s-5), calc((100% - 1100px) / 2 + var(--s-5))); color: var(--muted); font-size: var(--t-sm); }
 
 .auth-wrap { max-width: 430px; margin: var(--s-5) auto; padding: 0 var(--s-4); }
@@ -533,7 +537,8 @@ input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid var
   .nav a { white-space: nowrap; }
   .grid.two, .grid.three, .grid.four { grid-template-columns: 1fr; }
   .chart-box { height: 360px; }
-  .hero-copy h1 { font-size: var(--t-2xl); }
+  .hero-top { grid-template-columns: 1fr; gap: var(--s-4); justify-items: start; }
+  .hero-logo { width: 150px; }
   .summary .stat.main .value { font-size: var(--t-2xl); }
   .two-col, .checks { grid-template-columns: 1fr; }
   .pub-nav { padding: var(--s-3) var(--s-4); }
@@ -585,7 +590,7 @@ input[type=color] { width: 32px; height: 28px; padding: 0; border: 1px solid var
 .legend { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin-top: var(--s-1); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
 
-/* feedback, short and only where it tells you something happened */
+/* feedback */
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes flash-up { from { background: color-mix(in srgb, var(--up) 28%, transparent); } to { background: transparent; } }

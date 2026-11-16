@@ -1,4 +1,4 @@
-// notes page. list on the left, reader or editor on the right
+// notes page, list on the left, reader/editor on the right
 
 const listBox = document.getElementById('list');
 const searchIn = document.getElementById('search');
@@ -15,12 +15,12 @@ const counter = document.getElementById('counter');
 const dirtyBox = document.getElementById('dirty');
 
 let notes = [];
-let currentId = null;   // null while writing a brand new note
+let currentId = null;   // null for a new note
 let editing = false;
 let dirty = false;
 let timer = null;
 
-// which of the three panels is showing
+// which panel is showing
 function show(which) {
   reader.classList.toggle('hidden', which !== 'reader');
   editor.classList.toggle('hidden', which !== 'editor');
@@ -33,7 +33,7 @@ function words(text) {
   return t ? t.split(/\s+/).length : 0;
 }
 
-// turns the plain text into simple html. only bullets, headings and paragraphs
+// plain text to simple html (bullets, headings, paragraphs)
 function renderBody(text) {
   if (!text.trim()) return '<p class="muted">This note is empty. Hit Edit to write something.</p>';
   let out = '';
@@ -135,7 +135,7 @@ function updateCounter() {
   counter.textContent = words(contentIn.value) + ' words, ' + contentIn.value.length + ' of 10000 characters';
 }
 
-// asks before throwing away what you typed
+// ask before throwing away edits
 function okToLeave() {
   return !(editing && dirty) || confirm('You have unsaved changes. Leave without saving?');
 }
@@ -238,7 +238,7 @@ searchIn.addEventListener('input', function () {
 filterSel.addEventListener('change', loadNotes);
 sortSel.addEventListener('change', renderList);
 
-// tab close warning if you have unsaved stuff
+// warn on tab close if unsaved
 window.addEventListener('beforeunload', function (e) {
   if (editing && dirty) { e.preventDefault(); e.returnValue = ''; }
 });
@@ -255,7 +255,7 @@ async function start() {
   await loadNotes();
   const pre = new URLSearchParams(location.search).get('t');
   if (pre) {
-    // came from a stock page, start a note for that company
+    // came from a stock page, start a note for it
     startEdit(null, pre.toUpperCase());
     titleIn.value = pre.toUpperCase() + ' notes';
     setDirty(false);

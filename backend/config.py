@@ -6,22 +6,21 @@ FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
 # where the sqlite file lives
 DB_PATH = os.environ.get("MONEYSPROUT_DB", os.path.join(BASE_DIR, "moneysprout.db"))
 
-# demo mode lets the demo login + demo parent override work
+# demo mode turns on the parent override and deposits
 DEMO_MODE = os.environ.get("DEMO_MODE", "true").lower() == "true"
 
-# 10000 dollars in cents
+# $10,000 in cents
 START_CASH_CENTS = 1000000
 
 SESSION_HOURS = 12
 REMEMBER_DAYS = 30
 
-# the site is served over https through the cloudflare tunnel, so cookies are secure
+# cookies are https only (we sit behind the cloudflare tunnel)
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
 
-# the __Host- prefix makes browsers only accept the cookie over https on this exact site
-# for plain http testing (COOKIE_SECURE=false) we use the normal name
+# __Host- makes the browser only take the cookie over https. plain name for local testing
 COOKIE_NAME = "__Host-ms_session" if COOKIE_SECURE else "ms_session"
 
-# only these hostnames are allowed to reach the app (comma separated)
+# hostnames allowed to hit the app
 PUBLIC_HOST = os.environ.get("PUBLIC_HOST", "moneysprout.renengine.com")
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", PUBLIC_HOST).split(",") if h.strip()]

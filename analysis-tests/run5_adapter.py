@@ -1,15 +1,8 @@
-# run5: does the adapter read headlines better than plain Qwen?
-#
-# it runs the same 63 headlines three ways:
-#   1. keyword scorer + context rules only (no AI)
-#   2. plain Qwen2.5-3B-Instruct double checking the headlines
-#   3. Qwen + our adapter double checking the headlines
-#
-# the AI part uses the real _ai_verify() from predict.py, same prompt the app uses
-#
-# needs:  pip install torch transformers peft
-# run:    python run5_adapter.py --adapter ../backend/model/moneysprout-26-out
-# test the script itself with no model:  python run5_adapter.py --dry
+# run5: does the adapter beat plain Qwen on the 63 headlines?
+# runs them 3 ways: keywords only, plain Qwen2.5-3B-Instruct, Qwen + our adapter
+# needs: pip install torch transformers peft
+# run: python run5_adapter.py --adapter ../backend/model/moneysprout-26-out
+# no model needed to check the script: python run5_adapter.py --dry
 
 import os, sys, re, json, math, time, random, argparse
 
@@ -24,7 +17,7 @@ CLASSES = ["good", "bad", "neutral", "irrelevant"]
 
 
 def wilson(k, n, z=1.96):
-    # a range for what the real accuracy could be
+    # confidence range
     p = k / n
     d = 1 + z * z / n
     centre = (p + z * z / (2 * n)) / d
@@ -33,7 +26,7 @@ def wilson(k, n, z=1.96):
 
 
 def start_state(t):
-    # keyword score then context rules, same as the app does before the AI
+    # keywords then context rules, like the app
     s, rel, note = P.judge(t, P._lexicon_score(t))
     return s, rel, note
 
@@ -47,8 +40,8 @@ def run_keyword_only():
 
 
 def run_with_ai(gen, chunk=16):
-    # the app checks up to 16 headlines per AI call, so we do the same
-    # shuffled with a fixed seed, because H is sorted by answer and that would hint the model
+    # 16 per AI call like the app
+    # shuffled (fixed seed) because H is sorted by answer
     order = list(range(len(H)))
     random.Random(5).shuffle(order)
     labels = [None] * len(H)
@@ -90,7 +83,7 @@ def report(title, labels, unreadable=None):
 
 
 def make_gen(model, tok):
-    # same idea as the text generator in predict.py
+    # same as the generator in predict.py
     def gen(prompt):
         text = tok.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True)
         ids = tok(text, return_tensors="pt").to(model.device)
@@ -100,13 +93,13 @@ def make_gen(model, tok):
 
 
 def dry_gen(prompt):
-    # pretend AI that says neutral to everything, only for testing the script
+    # fake AI that says neutral to everything
     nums = re.findall(r"^(\d+)\. ", prompt, re.M)
     return json.dumps({n: "neutral" for n in nums})
 
 
 def find_adapter(path):
-    # the files can be right in the folder or a folder or two down, like predict.py allows
+    # files can be a folder or two down, like predict.py
     for root, dirs, files in os.walk(path):
         if "adapter_config.json" in files:
             return root

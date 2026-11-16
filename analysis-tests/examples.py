@@ -1,8 +1,7 @@
 # examples for the code analysis page
-# run it from this folder:  python examples.py
-# every block below is shown on the page with what it printed
-# the adapter blocks need the adapter folder. set ADAPTER_DIR or put it in backend/model/moneysprout-26-out
-# the last model block only runs if you set LOAD_MODEL=1 (it tries to load the 3B model, slow)
+# run from this folder: python examples.py
+# the adapter blocks need the adapter folder (set ADAPTER_DIR or use backend/model/moneysprout-26-out)
+# the last block only runs with LOAD_MODEL=1, it loads the 3B model and is slow
 
 import os, sys, math, time, json, random, struct, re
 
@@ -180,7 +179,7 @@ print("model's own summary:", res["summary"])
 
 
 # example: AI double check with a pretend AI
-# fake_ai stands in for the real model so we can see what verify does
+# fake_ai stands in for the model
 def fake_ai(prompt):
     print(prompt.split("\n\n")[1])
     return '{"1": "irrelevant", "2": "bad", "3": "good"}'

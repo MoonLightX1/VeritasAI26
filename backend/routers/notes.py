@@ -40,7 +40,7 @@ def list_notes(q: str = Query("", max_length=100), ticker: str = Query("", max_l
         sql += " AND ticker = ?"
         args.append(ticker.upper())
     if q:
-        # escape % and _ so they are searched as normal characters
+        # escape % and _
         like = "%" + q[:100].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         sql += " AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')"
         args += [like, like]
@@ -52,7 +52,7 @@ def list_notes(q: str = Query("", max_length=100), ticker: str = Query("", max_l
 def create(body: NoteBody, user=Depends(current_user), db=Depends(get_db)):
     if not body.title.strip():
         raise HTTPException(400, "Give your note a title first.")
-    # stop people stuffing the database with notes
+    # note cap
     n = db.execute("SELECT COUNT(*) c FROM notes WHERE user_id = ?", (user["id"],)).fetchone()["c"]
     if n >= MAX_NOTES:
         raise HTTPException(400, "You hit the limit of %d notes. Delete some first." % MAX_NOTES)
@@ -71,7 +71,7 @@ def update(note_id: int, body: NoteBody, user=Depends(current_user), db=Depends(
     if not body.title.strip():
         raise HTTPException(400, "Give your note a title first.")
     t = clean_ticker(body.ticker)
-    # user_id check so nobody can edit someone elses note
+    # user_id check so nobody edits someone else's note
     cur = db.execute(
         "UPDATE notes SET title = ?, content = ?, ticker = ?, updated_at = ? WHERE id = ? AND user_id = ?",
         (body.title.strip(), body.content, t, now(), note_id, user["id"]),

@@ -6,8 +6,8 @@ import urllib.request
 from config import BASE_DIR
 
 # company logos
-# the browser can only load images from our own site, so the server grabs each logo once
-# and saves it in logo_cache. the domains are a fixed list so nobody can make us fetch random sites
+# the browser only loads images from us, so the server fetches each logo once and caches it
+# domains are a fixed list so nobody can make us fetch random sites
 
 CACHE_DIR = os.path.join(BASE_DIR, "logo_cache")
 
@@ -19,18 +19,18 @@ DOMAINS = {
     "AMD": "amd.com", "SPOT": "spotify.com", "RBLX": "roblox.com", "F": "ford.com",
 }
 
-# tried in order, first one that gives a real image wins
+# tried in order, first real image wins
 SOURCES = [
     "https://www.google.com/s2/favicons?domain=%s&sz=128",
     "https://icons.duckduckgo.com/ip3/%s.ico",
 ]
 
-_failed = {}  # ticker -> when we can try again, so a dead provider does not get hammered
+_failed = {}  # ticker -> when to try again
 RETRY_AFTER = 600
 
 
 def _kind(data):
-    # only trust real image bytes
+    # real image bytes only
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return "image/png"
     if data[:3] == b"\xff\xd8\xff":

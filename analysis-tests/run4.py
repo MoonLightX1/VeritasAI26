@@ -2,7 +2,7 @@ import os
 import sys, math, random, json
 import os; sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
 from services import predict as P
-# one fixed seed, same calm history for both panels. panel B has a volatility shock after the history.
+# same seed and calm history for both panels, panel B gets a volatility shock after
 def build(seed=11, hist=120, steps=30, sigma=0.015, shock=1.0):
     rng=random.Random(seed)
     hr=[rng.gauss(0,sigma) for _ in range(hist)]

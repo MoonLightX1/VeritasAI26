@@ -1,6 +1,6 @@
 // settings page
 
-const AGE_TEXT = { under_13: 'Under 13', '13_17': '13 to 17', '18_plus': '18 or older' };
+const AGE_TEXT = { under_13: 'Under 13', '13_17': '13 to 17', '18_plus': '18 or older', unknown: 'N/A' };
 const GRADE_TEXT = { elementary: 'Elementary school', middle_school: 'Middle school', high_school: 'High school',
   college: 'College', graduated: 'Finished school', other: 'Other' };
 const REL_TEXT = { mother: 'Mother', father: 'Father', guardian: 'Legal guardian', grandparent: 'Grandparent', other: 'Other' };
@@ -13,38 +13,49 @@ const STATUS_PILL = {
 
 function row(a, b) { return '<tr><td class="muted">' + a + '</td><td class="right">' + b + '</td></tr>'; }
 
+const EXP_TEXT = { none: 'Nothing yet', a_little: 'A little', some: 'Some', lots: 'A lot' };
+const GOAL_TEXT = { learn_basics: 'Learn the basics', school_project: 'School project', save_for_future: 'Get ready to invest someday',
+  for_fun: 'Just for fun', teach_others: 'Teach someone else' };
+const INT_TEXT = { tech: 'Tech', gaming: 'Gaming', sports: 'Sports', food: 'Food', fashion: 'Fashion', cars: 'Cars',
+  entertainment: 'Movies and music', energy: 'Energy', health: 'Health', other: 'Something else' };
+
+// anything empty shows as N/A
+function na(v) { return v ? esc(v) : 'N/A'; }
+
 function renderAccount() {
   const m = window.ME;
+  const d = m.details || {};
+  const place = function (a, b) { return a || b ? [a, b].filter(Boolean).join(', ') : ''; };
   document.getElementById('account').innerHTML =
-    row('Username', esc(m.username)) +
-    row('Email', esc(m.email)) +
-    row('Age range', AGE_TEXT[m.age_band] || '') +
-    (m.details ? row('Name', esc(m.details.full_name)) +
-      row('Location', esc(m.details.region + ', ' + m.details.country)) +
-      row('School level', GRADE_TEXT[m.details.grade] || '') : '') +
+    row('Username', na(m.username)) +
+    row('Email', na(m.email)) +
+    row('Name', na(d.full_name)) +
+    row('Age range', AGE_TEXT[m.age_band] || 'N/A') +
+    row('Country', na(d.country)) +
+    row('State or region', na(d.region)) +
+    row('School level', GRADE_TEXT[d.grade] || 'N/A') +
+    row('School name', na(d.school)) +
+    row('Stock experience', EXP_TEXT[d.experience] || 'N/A') +
+    row('Main goal', GOAL_TEXT[d.goal] || 'N/A') +
+    row('Interests', d.interests && d.interests.length ? esc(d.interests.map(function (i) { return INT_TEXT[i] || i; }).join(', ')) : 'N/A') +
     row('Joined', shortDate(m.created_at)) +
-    row('Practice trades', m.transactions) +
+    row('Trades', m.transactions) +
     row('Watchlist companies', m.watchlist_count);
   document.getElementById('dname').value = m.display_name;
   document.getElementById('demoState').textContent = m.demo_mode
-    ? 'Demo mode is on, so you can use the parent override and add pretend money.'
+    ? 'Demo mode is on, so you can use the parent override and add funds.'
     : 'Demo mode is off.';
   renderParent();
 }
 
-// shows the parent they gave us at signup
+// parent from signup
 function renderParent() {
-  const p = window.ME.parent;
-  const box = document.getElementById('parentInfo');
-  if (!p) {
-    box.innerHTML = '<div class="muted small">No parent or guardian on file. Adult accounts do not need one.</div>';
-    return;
-  }
-  box.innerHTML = '<table><tbody>' +
-    row('Name', esc(p.full_name)) +
-    row('Relationship', REL_TEXT[p.relationship] || '') +
-    row('Email', esc(p.email)) +
-    row('Phone', esc(p.phone)) +
+  const p = window.ME.parent || {};
+  document.getElementById('parentInfo').innerHTML = '<table><tbody>' +
+    row('Name', na(p.full_name)) +
+    row('Relationship', REL_TEXT[p.relationship] || 'N/A') +
+    row('Email', na(p.email)) +
+    row('Phone', na(p.phone)) +
     '</tbody></table>';
 }
 
@@ -70,7 +81,7 @@ async function loadPerm() {
     actions.innerHTML = '';
   }
 
-  // override buttons only show when there is something pending and demo mode is on
+  // override buttons need a pending request and demo mode
   document.getElementById('permDemo').classList.toggle('hidden', !(d.demo_mode && d.status === 'pending'));
 
   const hist = document.getElementById('permHistory');

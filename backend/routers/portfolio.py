@@ -32,18 +32,18 @@ class ResetBody(BaseModel):
     confirm: bool = False
 
 
-# trades and deposits are limited per user so nobody scripts thousands of them
+# per user limit on trades and deposits
 def slow_down(user):
     if security.too_many("money:" + str(user["id"]), limit=40, window=60):
         raise HTTPException(429, "Slow down a bit.")
 
 
-# trading needs the parent ok (adults are auto approved)
+# trading needs parent ok (adults are auto approved)
 def need_permission(db, user):
     status = pf.permission_status(db, user["id"])
     if status != "approved":
         msgs = {
-            "none": "You need parent permission before you can practice trading. Ask for it in Settings.",
+            "none": "You need parent permission before you can trade. Ask for it in Settings.",
             "pending": "Your permission request is still waiting for a parent.",
             "denied": "Parent permission was denied, so trading is turned off.",
         }
@@ -82,12 +82,12 @@ def sell(body: SellBody, user=Depends(current_user), db=Depends(get_db)):
         raise HTTPException(400, str(e))
 
 
-# fake money top up. only in demo mode, and it skips the parent check on purpose
+# demo deposit, only in demo mode, skips the parent check on purpose
 @router.post("/deposit")
 def deposit(body: DepositBody, user=Depends(current_user), db=Depends(get_db)):
     slow_down(user)
     if not DEMO_MODE:
-        raise HTTPException(403, "Adding pretend money is turned off.")
+        raise HTTPException(403, "Deposits are turned off.")
     try:
         return pf.deposit(db, user["id"], body.amount)
     except pf.TradeError as e:

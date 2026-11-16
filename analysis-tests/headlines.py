@@ -1,5 +1,4 @@
-# hand written test headlines, label = what a person would say it means for the stock
-# good / bad / neutral / irrelevant
+# hand written test headlines, labeled by what they mean for the stock
 H = [
 # good
 ("Apple beats earnings expectations as iPhone sales climb", "good"),

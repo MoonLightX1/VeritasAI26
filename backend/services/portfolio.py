@@ -5,8 +5,8 @@ from config import START_CASH_CENTS
 from services import market
 
 
-MAX_DEPOSIT_CENTS = 10_000_000          # $100,000 at a time
-MAX_DEPOSIT_TOTAL_CENTS = 1_000_000_000  # $10,000,000 all together
+MAX_DEPOSIT_CENTS = 10_000_000          # $100,000 per deposit
+MAX_DEPOSIT_TOTAL_CENTS = 1_000_000_000  # $10,000,000 total
 
 
 class TradeError(Exception):
@@ -21,7 +21,7 @@ def create_portfolio(db, user_id):
 
 
 def permission_status(db, user_id):
-    # latest row wins, no row means nothing asked yet
+    # latest row wins
     row = db.execute(
         "SELECT * FROM permissions WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user_id,)
     ).fetchone()
@@ -34,12 +34,12 @@ def get_cash_cents(db, user_id):
 
 
 def finite(n):
-    # NaN and infinity would crash the maths, so refuse them up front
+    # NaN and infinity break the math
     return n is not None and isinstance(n, (int, float)) and math.isfinite(n)
 
 
 def lock_db(db):
-    # takes the write lock now, so two trades at the same time cannot both spend the same cash
+    # lock now so two trades cannot spend the same cash
     db.execute("BEGIN IMMEDIATE")
 
 
@@ -49,7 +49,7 @@ def get_deposited_cents(db, user_id):
 
 
 def deposit(db, user_id, amount):
-    # demo only, adds fake cash and remembers it so it does not count as profit
+    # demo only, tracked so it does not count as profit
     if not finite(amount) or amount <= 0:
         raise TradeError("Enter an amount more than zero.")
     if amount > 1_000_000:
@@ -62,7 +62,7 @@ def deposit(db, user_id, amount):
     lock_db(db)
     if get_deposited_cents(db, user_id) + cents > MAX_DEPOSIT_TOTAL_CENTS:
         db.rollback()
-        raise TradeError("You hit the $10,000,000 limit of pretend deposits.")
+        raise TradeError("You hit the $10,000,000 deposit limit.")
     db.execute(
         "UPDATE portfolios SET cash_cents = cash_cents + ?, deposited_cents = deposited_cents + ?, updated_at = ? "
         "WHERE user_id = ?",
@@ -103,7 +103,7 @@ def summary(db, user_id):
     holdings_value = sum(h["value"] for h in hold)
     day_change = sum(h["day_change"] for h in hold)
     total = cash + holdings_value
-    # deposits count as money put in, so they are not profit
+    # deposits are money put in, not profit
     start = (START_CASH_CENTS + get_deposited_cents(db, user_id)) / 100
     prev_total = total - day_change
     return {
@@ -144,7 +144,7 @@ def buy(db, user_id, ticker, quantity=None, amount=None):
     cash = get_cash_cents(db, user_id)
     if total_cents > cash:
         db.rollback()
-        raise TradeError("Not enough virtual cash for that.")
+        raise TradeError("Not enough cash for that.")
     row = db.execute(
         "SELECT * FROM holdings WHERE user_id = ? AND ticker = ?", (user_id, ticker)
     ).fetchone()
@@ -179,7 +179,7 @@ def sell(db, user_id, ticker, quantity=None, sell_all=False):
         raise TradeError("Unknown company.")
     if quantity is not None and not finite(quantity):
         raise TradeError("That number does not look right.")
-    # price first (can be slow), then lock, then read what they own
+    # price first (slow), then lock, then read holdings
     price = market.price_at(ticker)
     lock_db(db)
     row = db.execute(

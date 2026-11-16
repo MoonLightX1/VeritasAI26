@@ -7,12 +7,11 @@ import urllib.request
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 
-# real prices from yahoo finance, no api key
-# it is free but unofficial, so it can be slow or change one day
-# prices can be up to about 15 minutes late
-# everything goes through fetch_chart() so swapping the source later is easy
+# prices from yahoo finance, no api key
+# unofficial, so it can be slow or change. prices are up to about 15 min late
+# everything goes through fetch_chart()
 
-# (the last two numbers in each row are old simulation leftovers, not used anymore)
+# (the last two numbers in each row are leftovers, not used)
 COMPANIES = [
     ("AAPL", "Apple", "NASDAQ", "Technology", "Consumer Electronics", "Cupertino, California", 1976, 210.0, 0.017,
      "Makes the iPhone, Mac computers, iPad and Apple Watch, and sells apps and services."),
@@ -85,16 +84,16 @@ RANGE_MAP = {
     "MAX": ("max", "1wk", 3600),
 }
 
-QUOTE_TTL = 20      # seconds, shared by every user so yahoo only sees us once per 20s per stock
-STALE_OK = 6 * 3600  # if yahoo is down we can show an older copy for this long (and say so)
+QUOTE_TTL = 20      # seconds, shared by everyone
+STALE_OK = 6 * 3600  # if yahoo is down we show an older copy for this long
 
 
 class MarketUnavailable(Exception):
     pass
 
 
-_cache = {}          # key -> (time fetched, data)
-_locks = {}          # key -> lock, so two users do not fetch the same thing at once
+_cache = {}          # key -> (time, data)
+_locks = {}          # key -> lock
 _locks_guard = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
 
@@ -110,15 +109,15 @@ def _lock_for(key):
         return _locks[key]
 
 
-# yahoo has two hostnames, if one is being grumpy we try the other
+# two yahoo hostnames, try the other if one fails
 HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 
-# if yahoo just failed we stop asking for a few seconds so pages do not hang
+# after a failure, wait a few seconds before asking again
 _down_until = 0.0
 
 
 def fetch_chart(symbol, rng, interval):
-    # the one function that talks to yahoo, returns the parsed json "result" or raises
+    # the only function that talks to yahoo
     global _down_until
     if time.time() < _down_until:
         raise MarketUnavailable("Market data provider is not answering right now.")
@@ -176,7 +175,7 @@ def _parse(result):
 
 
 def _get(symbol, rng_name):
-    # cached fetch, returns (meta, points, fetched_at, is_stale)
+    # cached fetch -> (meta, points, fetched_at, is_stale)
     rng, interval, ttl = RANGE_MAP[rng_name]
     key = (symbol, rng_name)
     now = time.time()
@@ -184,7 +183,7 @@ def _get(symbol, rng_name):
     if hit and now - hit[0] < ttl:
         return hit[1], hit[2], hit[0], False
     with _lock_for(key):
-        # someone else may have filled it while we waited
+        # may have been filled while we waited
         hit = _cache.get(key)
         if hit and time.time() - hit[0] < ttl:
             return hit[1], hit[2], hit[0], False
@@ -241,7 +240,7 @@ def quote(ticker):
 
 
 def market_status():
-    # is the us market open right now, uses apple since it is already cached from the quotes
+    # is the market open, uses apple since it is cached anyway
     try:
         meta = _get("AAPL", "1D")[0]
     except MarketUnavailable:
@@ -250,7 +249,7 @@ def market_status():
 
 
 def prefetch(tickers, sparks=False):
-    # warm the cache for many stocks at once so pages do not wait one by one
+    # fill the cache for a bunch of stocks at once
     todo = [t.upper() for t in tickers if is_company(t)]
     list(_pool.map(lambda t: _safe(quote, t), todo))
     if sparks:

@@ -8,11 +8,9 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 
-# company news from two free places, no api keys
-#   yahoo finance search (money news)
-#   google news rss (wider, catches scandals and lawsuits that yahoo skips)
-# we run a few searches at once and merge them
-# both are unofficial. if one is down we use the other, if both are down we return []
+# news from yahoo finance search and google news rss, no keys
+# google catches scandals and lawsuits yahoo skips
+# both unofficial. if one is down use the other, if both are down return []
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 YAHOO_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
@@ -63,7 +61,7 @@ def parse_google(xml_text):
             t = int(parsedate_to_datetime(it.findtext("pubDate")).timestamp())
         except Exception:
             t = 0
-        # google adds " - Publisher" to the end of every title
+        # google tacks " - Publisher" on the end
         if src and title.endswith(" - " + src):
             title = title[: -len(src) - 3].strip()
         out.append({"title": title, "publisher": src, "link": link, "time": t})
@@ -91,8 +89,7 @@ def _plain_name(name):
 
 
 def headlines(ticker, name=None):
-    """Recent news for a company: [{title, publisher, link, time}], newest first (up to 45).
-    Returns [] if every source is down."""
+    """newest news for a company, up to 45. [] if everything is down"""
     ticker = ticker.upper()
     now = time.time()
     hit = _cache.get(ticker)
@@ -112,7 +109,7 @@ def headlines(ticker, name=None):
             (_google, ("%s stock" % who, 14)),
             (_google, ("%s earnings OR analyst OR forecast" % who, 14)),
             (_google, ("%s CEO OR chairman OR executive OR founder" % who, 21)),
-            # the stuff that moves a stock and never shows up in a "stock news" feed
+            # stuff that moves a stock but is not in a stock news feed
             (_google, ("%s scandal OR affair OR lawsuit OR investigation OR allegations OR resigns OR fraud" % who, 30)),
             (_google, ("%s regulators OR ban OR tariffs OR export OR antitrust" % who, 21)),
         ]
@@ -124,15 +121,15 @@ def headlines(ticker, name=None):
             except Exception:
                 continue
             for n in got:
-                # yahoo's own ticker feed is already about this company
+                # yahoo ticker feed is already on topic
                 n["trusted"] = (i == 0)
             raw.extend(got)
 
         if not raw:
-            # keep serving an old copy rather than nothing
+            # old copy is better than nothing
             return hit[1] if hit else []
 
-        # google searches can drift off topic, so those must mention the company
+        # google can drift off topic, so it has to mention the company
         keys = [k.lower() for k in (ticker, who, alt) if k and len(k) > 2]
         out, seen = [], set()
         for n in raw:

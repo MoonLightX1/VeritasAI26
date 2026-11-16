@@ -41,7 +41,7 @@ listBox.addEventListener('click', async function (e) {
   }
 });
 
-// figure out which company they typed, accepts "AAPL" or "Apple (AAPL)" or just a name
+// which company they typed: "AAPL", "Apple (AAPL)" or just a name
 function findTicker(text) {
   const v = text.trim().toLowerCase();
   if (!v) return null;

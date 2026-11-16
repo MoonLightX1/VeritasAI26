@@ -9,14 +9,12 @@ import time
 from config import BASE_DIR
 from services import market, news
 
-# how the prediction works
-# 1. get the news and score each headline from -1 (bad) to +1 (good)
-# 2. squash it into one mood number, newer headlines count more
-# 3. work out the price trend and how jumpy the stock is
-# 4. draw the line:
-#    mixed news keeps the trend, good news leans up, bad news leans down
-#    and the shaded range gets wider the further out we go
-# it is a guess for learning, not financial advice
+# how it works
+# 1. score each headline from -1 (bad) to +1 (good)
+# 2. mix them into one mood number, newer ones count more
+# 3. get the price trend and how jumpy the stock is
+# 4. draw the line, with a range that gets wider the further out it goes
+# just a guess, not financial advice
 
 MODEL_DIR = os.path.join(BASE_DIR, "model", "moneysprout-26-out")
 
@@ -35,7 +33,7 @@ shortage antitrust penalty scandal allegations alleged misconduct harassment res
 fired indicted indictment charged subpoena subpoenaed settlement controversy backlash tariffs sanctions breach hack
 hacked outage blasted slammed troubled""".split())
 
-# things that can move a whole stock on their own: leadership scandals, legal trouble, fraud
+# stuff that can move a whole stock: scandals, legal trouble, fraud
 SEVERE = set("""scandal allegations alleged misconduct harassment resigns resignation ousted indicted indictment
 charged subpoena subpoenaed fraud probe investigation lawsuit sues sued antitrust recall hack hacked breach
 sanctions ban banned bankruptcy""".split())
@@ -46,9 +44,8 @@ _engine = {"name": None, "fn": None}
 _engine_lock = threading.Lock()
 
 
-# context rules. a scary word is not always bad news (a trailer for "The Affair" is not a scandal)
-# so we skip quoted titles, skip entertainment headlines, and only count a personal scandal
-# when an executive or owner is in it
+# context rules: a scary word is not always bad news (a trailer for "The Affair" is not a scandal)
+# skip quoted titles and entertainment, and only count a personal scandal if an exec is in it
 _QUOTED = re.compile(r"[\u201c\"][^\u201d\"]{2,}[\u201d\"]|\u2018[^\u2019]{2,}\u2019|(?<![\w])'[^']{2,}'(?![\w])")
 ENTERTAINMENT = set("""trailer teaser movie movies film films episode episodes premiere premieres sequel prequel actor actress
 cast docuseries soundtrack streaming-release miniseries""".split())
@@ -105,8 +102,8 @@ def is_severe(text):
     return bool(words & SEVERE) or personal_scandal(text)
 
 
-# figuring out what is in the model folder
-# if it does not load we save a plain reason and show it in the app, so you always know why
+# what is in the model folder
+# if it fails to load we save the reason and show it in the app
 
 _status = {"checked": False, "kind": None, "dir": MODEL_DIR, "base": None, "reason": ""}
 _status_lock = threading.RLock()
@@ -129,7 +126,7 @@ def _read_json(path):
 
 
 def _find_model_dir():
-    # the files may be right in the folder or one or two folders down (e.g. moneysprout-26-out/adapter)
+    # files can be in the folder or a folder or two down
     def has_model(d):
         try:
             n = os.listdir(d)
@@ -150,7 +147,7 @@ def _find_model_dir():
 
 
 def _inspect():
-    # what kind of model is in the folder? (decided once, from the files)
+    # what kind of model is it (checked once)
     with _status_lock:
         if _status["checked"]:
             return _status["kind"]
@@ -174,7 +171,7 @@ def _inspect():
         if gguf:
             _status.update(kind="gguf", base=os.path.join(d, gguf[0]))
         elif "adapter_config.json" in files:
-            # a LoRA adapter, it sits on top of a base model that has to be named somewhere
+            # LoRA adapter, needs a base model named somewhere
             try:
                 cfg = _read_json(os.path.join(d, "adapter_config.json"))
             except Exception as e:
@@ -227,7 +224,7 @@ def model_note():
 
 
 def _load_hf(task):
-    # returns (model, tokenizer) for a plain model folder or a LoRA adapter on its base model
+    # returns (model, tokenizer)
     from transformers import (AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM,
                               AutoModelForSequenceClassification)
     d, kind = _status["dir"], _status["kind"]
@@ -240,7 +237,7 @@ def _load_hf(task):
         from peft import PeftModel
         extra = {}
         if task == "cls":
-            # a classification adapter needs to know how many labels its head has
+            # classifier adapter needs the label count
             try:
                 from safetensors import safe_open
                 with safe_open(os.path.join(d, "adapter_model.safetensors"), framework="pt") as f:
@@ -262,13 +259,13 @@ def _load_hf(task):
 
 
 def _load_model_engine():
-    # Uses the ai in backend/model/moneysprout-26-out when it is a text classifier
-    # (labels like positive / negative / neutral). Anything else -> None -> keyword scorer.
+    # uses the model in backend/model/moneysprout-26-out if it is a classifier
+    # anything else returns None and we use the keyword scorer
     kind = _inspect()
     if kind not in ("classifier", "adapter_cls"):
         return None
     try:
-        from transformers import pipeline  # optional, only needed if you ship a model
+        from transformers import pipeline  # optional
         model, tok = _load_hf("cls")
         clf = pipeline("text-classification", model=model, tokenizer=tok, top_k=None, truncation=True)
     except Exception as e:
@@ -289,7 +286,7 @@ def _load_model_engine():
         return out
 
     try:
-        run(["test"])  # make sure the labels make sense before we trust it
+        run(["test"])  # sanity check the labels
     except Exception as e:
         _note("The classifier loaded but its labels did not work: %s" % e)
         return None
@@ -370,15 +367,14 @@ def score_headlines(items):
     try:
         scores = fn([i["title"] for i in items])
     except Exception:
-        # model died on us, do not take the page down with it
+        # model failed, do not take the page down
         name = "keyword fallback"
         scores = [_lexicon_score(i["title"]) for i in items]
     return name, scores
 
 
 def combine(items, scores, now=None):
-    # newer headlines count more (about a 4 day half-ish life), and only a few
-    # headlines means we are less sure, so the number is pulled toward 0
+    # newer counts more (about 4 days), and few headlines pull the number toward 0
     now = now or time.time()
     wsum = 0.0
     ssum = 0.0
@@ -388,8 +384,7 @@ def combine(items, scores, now=None):
         w = math.exp(-age_days / 4.0)
         wsum += w
         ssum += w * s
-        # an executive scandal / lawsuit / investigation is not cancelled out by ten
-        # "stock rises" headlines, so negative ones like that get an extra push of their own
+        # a scandal should not get cancelled by ten "stock rises" headlines
         if s < 0 and is_severe(it["title"]):
             severe_w += w
     if wsum <= 0:
@@ -426,7 +421,7 @@ def _next_time(t_ms, step_ms):
 
 
 def _vol(points):
-    # (trend per step, typical swing per step) from the recent prices, as log returns
+    # (trend, swing) per step from recent log returns
     closes = [p["c"] for p in points]
     n = len(closes)
     if n < 8:
@@ -438,19 +433,15 @@ def _vol(points):
     mu = sum(rets) / len(rets)
     var = sum((r - mu) ** 2 for r in rets) / (len(rets) - 1)
     sigma = max(math.sqrt(var), 1e-5)
-    # a trend alone should not be allowed to run away
+    # cap the trend so it cannot run away
     return max(-1.5 * sigma, min(1.5 * sigma, mu)), sigma
 
 
 def forecast(points, sentiment, steps, end_log=None):
-    """Future points after the last real one.
-
-    The shape is deliberately not a straight line:
-      - the move happens mostly early and then levels off (news and trends fade, nothing climbs forever)
-      - an overextended price is pulled back a bit toward its recent average
-      - small realistic ups and downs, drawn from the stock's own past moves, that still land on the end target
-    If end_log is given (the AI's target, as a log return over all the steps) the line ends there instead.
-    The shaded range comes from how jumpy the stock is."""
+    """future points after the last real one
+    not a straight line: most of the move is early, a stretched price gets pulled back,
+    and there is a little wiggle from the stock's own past moves
+    end_log is the AI's target (log return), the line ends there if given"""
     import random
     v = _vol(points)
     if not v:
@@ -460,7 +451,7 @@ def forecast(points, sentiment, steps, end_log=None):
     n = len(closes)
     start = closes[-1]
 
-    # fade: roughly 85% of the total move is done by the 2/3 point
+    # fade, about 85% of the move is done by the 2/3 point
     tau = max(1.0, steps / 2.5)
     weights = [math.exp(-k / tau) for k in range(1, steps + 1)]
     wtot = sum(weights)
@@ -474,7 +465,7 @@ def forecast(points, sentiment, steps, end_log=None):
         news_drift = sentiment * 0.45 * sigma
         drift = (1.0 - a) * mu + a * news_drift
         total = drift * wtot  # sum of the fading per-step drift
-        # pull back toward the recent average if the price ran far from it
+        # pull back toward the average if it ran too far
         ma = sum(closes[-50:]) / len(closes[-50:])
         dev = math.log(start / ma) if ma > 0 else 0.0
         dev = max(-3 * sigma * math.sqrt(steps), min(3 * sigma * math.sqrt(steps), dev))
@@ -482,7 +473,7 @@ def forecast(points, sentiment, steps, end_log=None):
     else:
         total = end_log
 
-    # natural wiggle from the stock's own past moves, same every time for the same data
+    # wiggle from the stock's own moves, same every time
     look = min(120, n - 1)
     hist = [math.log(closes[i] / closes[i - 1]) for i in range(n - look, n) if closes[i - 1] > 0 and closes[i] > 0]
     hm = sum(hist) / len(hist)
@@ -492,7 +483,7 @@ def forecast(points, sentiment, steps, end_log=None):
     for _ in range(steps):
         run += rng.choice(hist) * 0.6
         wig.append(run)
-    # bridge it so the wiggle starts and ends at zero, the line still lands on the target
+    # wiggle starts and ends at zero so we still land on the target
     bridge = [w - (k + 1) / steps * wig[-1] for k, w in enumerate(wig)]
 
     step_ms = _median([points[i]["t"] - points[i - 1]["t"] for i in range(max(1, n - 20), n)])
@@ -532,8 +523,8 @@ def _build(items, scores, rel, notes):
 
 
 def _ai_verify(gen, name, items, scores, rel, notes):
-    """The AI double-checks the headlines that matter most. Changes scores in place.
-    Returns a list of what it changed, or None if its answer could not be read."""
+    """AI rechecks the top headlines and changes scores in place
+    returns what it changed, or None if the answer was unreadable"""
     now = time.time()
 
     def weight(i):
@@ -593,7 +584,7 @@ HORIZON_TEXT = {"1D": "the next 45 minutes", "1W": "the next few trading hours",
 
 
 def _parse_ai(text):
-    # the model was asked for json, but small models wander, so be forgiving
+    # asked for json but small models ramble, so be forgiving
     out = {"outlook": None, "change_pct": None, "confidence": None, "summary": None}
     m = re.search(r"\{.*\}", text, re.S)
     if m:
@@ -652,8 +643,8 @@ def _ai_prompt(name, ticker, range_name, rows, counts, sentiment, recent_pct, si
 
 
 def predict(ticker, range_name, progress=None, ai=False):
-    """progress(step_id, status, detail) is called as it works, so the app can show what is happening.
-    With ai=True the model (if it loads) makes the prediction and the summary too."""
+    """progress(step_id, status, detail) is called as it goes so the page can show it
+    ai=True lets the model help if it loads"""
     cb = progress or (lambda *a, **k: None)
     name = (market.company(ticker) or {}).get("name", ticker)
 
@@ -685,7 +676,7 @@ def predict(ticker, range_name, progress=None, ai=False):
 
     cb("score", "running", "Reading every headline and scoring it from bad to good (first time loads the scorer)...")
     engine, scores = score_headlines(items)
-    # context check: quoted titles, trailers and other non-business headlines do not count
+    # context check
     rel, notes = [True] * len(items), [""] * len(items)
     for i, it in enumerate(items):
         scores[i], rel[i], notes[i] = judge(it["title"], scores[i])
@@ -701,7 +692,7 @@ def predict(ticker, range_name, progress=None, ai=False):
         else:
             cb("model", "warn", "Not available: " + (model_note() or "no text-writing AI model found"))
 
-    # second opinion: the AI re-reads the headlines that matter most and says good / bad / neutral / not relevant
+    # AI second opinion on the top headlines
     if gen and items:
         cb("verify", "running", "The AI is double-checking the most important headlines...")
         try:
@@ -787,7 +778,7 @@ def predict(ticker, range_name, progress=None, ai=False):
                     chg = res["change_pct"]
                     if chg is None:
                         chg = {"up": 1.0, "down": -1.0, "flat": 0.0}[res["outlook"]] * sigma * 100 * math.sqrt(steps)
-                    # make the direction and the number agree
+                    # direction and number have to agree
                     if res["outlook"] == "up":
                         chg = abs(chg)
                     elif res["outlook"] == "down":
@@ -796,10 +787,10 @@ def predict(ticker, range_name, progress=None, ai=False):
                         chg = chg * 0.25
                     chg = max(-99.0, chg)
                     ai_end = math.log(1 + chg / 100.0)
-                    # do not let a wild guess draw something impossible for this stock
+                    # cap wild guesses
                     cap = 2.5 * sigma * math.sqrt(steps)
                     ai_end = max(-cap, min(cap, ai_end))
-                    # mostly the AI, a little of the real trend to keep it grounded
+                    # mostly the AI, some trend
                     target = 0.75 * ai_end + 0.25 * math.log(1 + stat_pct / 100.0)
                     future = forecast(pts, s, steps, end_log=target)
                     ai_info.update(used=True, change_pct=round((math.exp(ai_end) - 1) * 100, 2))
@@ -868,7 +859,7 @@ def _clean_jobs():
         del _jobs[k]
 
 
-# jobs wait in line here, only one runs at a time (the AI is heavy)
+# one job at a time, the AI is heavy
 _queue = []
 _running = None
 _worker_on = False
@@ -894,7 +885,7 @@ def _run_job(job):
 
 
 def _worker():
-    # grabs the next job in line until the line is empty
+    # next job until the line is empty
     global _running, _worker_on
     while True:
         with _jobs_lock:
@@ -920,7 +911,7 @@ def start_job(user_id, ticker, range_name):
     global _worker_on
     with _jobs_lock:
         _clean_jobs()
-        # one at a time per person, if they already have one running give that back
+        # one per person, give back the running one
         for k, j in _jobs.items():
             if j["user"] == user_id and not j["done"] and j["ticker"] == ticker and j["range"] == range_name:
                 return k
@@ -939,7 +930,7 @@ def start_job(user_id, ticker, range_name):
 
 
 def cancel_job(user_id, jid):
-    # only works if it is still waiting in line, a running one just gets ignored by the page
+    # only works while still in line
     with _jobs_lock:
         job = _jobs.get(jid)
         if not job or job["user"] != user_id:
@@ -960,7 +951,7 @@ def job_state(user_id, jid):
         return None
     with job["lock"]:
         steps = [dict(st) for st in job["steps"]]
-    # position in line: 1 means it is next (or running), 2 means one job is ahead, and so on
+    # place in line, 1 = next or running
     position = None
     if job["started_at"] is None and not job["done"]:
         with _jobs_lock:
@@ -993,7 +984,7 @@ def _template_summary(p):
 
 def _clean(text):
     text = re.sub(r"\s+", " ", text).strip()
-    # drop a trailing half sentence if the model ran out of room
+    # cut off a half finished sentence
     if text and text[-1] not in ".!?" and "." in text:
         text = text[: text.rindex(".") + 1]
     return text

@@ -1,17 +1,26 @@
 import json
+import secrets
 import datetime as dt
 
 from database import now
 from security import hash_password
 from services import portfolio
 
-AGE_BANDS = ["under_13", "13_17", "18_plus"]
+AGE_BANDS = ["under_13", "13_17", "18_plus", "unknown"]
+
+# placeholder email for accounts made with only a username (can never be typed in the form)
+NO_EMAIL = "@no-email.invalid"
 
 GRADES = ["elementary", "middle_school", "high_school", "college", "graduated", "other"]
 EXPERIENCE = ["none", "a_little", "some", "lots"]
 GOALS = ["learn_basics", "school_project", "save_for_future", "for_fun", "teach_others"]
 INTERESTS = ["tech", "gaming", "sports", "food", "fashion", "cars", "entertainment", "energy", "health", "other"]
 RELATIONSHIPS = ["mother", "father", "guardian", "grandparent", "other"]
+
+
+# placeholder username for accounts made with only an email. has a hyphen so nobody can pick it
+def placeholder_username():
+    return "anon-" + secrets.token_hex(4)
 
 
 def age_on(birth, today=None):
@@ -52,8 +61,9 @@ def create_user(db, username, email, password, display_name, age_band, is_demo=F
     if parent:
         db.execute(
             "INSERT INTO parents (user_id, full_name, relationship, email, phone, consent, consent_at) "
-            "VALUES (?, ?, ?, ?, ?, 1, ?)",
-            (uid, parent["full_name"], parent["relationship"], parent["email"], parent["phone"], now()),
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (uid, parent["full_name"], parent["relationship"], parent["email"], parent["phone"],
+             1 if parent["consent"] else 0, now()),
         )
 
     # sort out trading permission
@@ -65,14 +75,14 @@ def create_user(db, username, email, password, display_name, age_band, is_demo=F
             (uid, now(), now()),
         )
     elif is_demo:
-        # demo kids get the demo override right away, still not real consent
+        # demo kids get the override right away
         db.execute(
             "INSERT INTO permissions (user_id, status, requested_at, decided_at, demo_override, note) "
             "VALUES (?, 'approved', ?, ?, 1, 'DEMO PARENT OVERRIDE. Not real parental consent.')",
             (uid, now(), now()),
         )
     elif parent:
-        # real kid account, request goes to the parent they listed
+        # real kid account, goes to the parent they listed
         db.execute(
             "INSERT INTO permissions (user_id, status, requested_at, demo_override, note) "
             "VALUES (?, 'pending', ?, 0, ?)",
@@ -91,8 +101,8 @@ def profile(db, user):
     par = db.execute("SELECT * FROM parents WHERE user_id = ?", (uid,)).fetchone()
     return {
         "id": uid,
-        "username": user["username"],
-        "email": user["email"],
+        "username": None if "-" in user["username"] else user["username"],
+        "email": None if user["email"].endswith(NO_EMAIL) else user["email"],
         "display_name": user["display_name"],
         "age_band": user["age_band"],
         "is_demo": bool(user["is_demo"]),
@@ -100,18 +110,19 @@ def profile(db, user):
         "wallet": s,
         "transactions": n_tx,
         "watchlist_count": n_watch,
-        # predictions come later when the ai part is added
+        # predictions come later
         "predictions": 0,
         "permission": portfolio.permission_status(db, uid),
         "details": None if not det else {
-            "full_name": det["first_name"] + " " + det["last_name"],
+            "full_name": (det["first_name"] + " " + det["last_name"]).strip(),
+            "birth_date": det["birth_date"],
             "country": det["country"],
             "region": det["region"],
             "grade": det["grade"],
             "school": det["school"],
             "experience": det["experience"],
             "goal": det["goal"],
-            "interests": json.loads(det["interests"]),
+            "interests": json.loads(det["interests"] or "[]"),
         },
         "parent": None if not par else {
             "full_name": par["full_name"],

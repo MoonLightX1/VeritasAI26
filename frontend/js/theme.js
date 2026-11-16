@@ -1,5 +1,4 @@
-// light / dark mode
-// this loads in the head so the page never flashes the wrong color
+// light/dark mode, loads in the head so there is no flash
 
 (function () {
   function saved() {
@@ -17,7 +16,7 @@
   window.setTheme = function (t) {
     document.documentElement.setAttribute('data-theme', t);
     try { localStorage.setItem('ms_theme', t); } catch (e) {}
-    // let the chart know so it can redraw
+    // tell the chart
     window.dispatchEvent(new Event('themechange'));
     document.querySelectorAll('.theme-btn').forEach(function (b) { b.textContent = t === 'dark' ? 'Light' : 'Dark'; });
   };
@@ -26,13 +25,13 @@
     window.setTheme(window.currentTheme() === 'dark' ? 'light' : 'dark');
   };
 
-  // button html, pages drop this in wherever they want the toggle
+  // button html
   window.themeButton = function () {
     return '<button class="btn light sm theme-btn" type="button">' +
       (window.currentTheme() === 'dark' ? 'Light' : 'Dark') + '</button>';
   };
 
-  // one click listener for every theme button (no inline onclick so the csp can stay strict)
+  // one click listener, no inline onclick because of the csp
   document.addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('.theme-btn')) window.toggleTheme();
   });

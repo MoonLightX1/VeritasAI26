@@ -14,7 +14,7 @@ function stockRow(item) {
     '<div class="right"><div><b>' + money(q.price) + '</b></div><div class="small ' + cls(q.change_pct) + '">' + pct(q.change_pct) + '</div></div></div>';
 }
 
-// popup about the ai stuff, shows once each time you open the site (not on the main page)
+// ai popup, once per visit
 function aiNotice() {
   try { if (sessionStorage.getItem('aiNoticeSeen')) return; } catch (e) {}
   const host = document.createElement('div');
@@ -24,7 +24,7 @@ function aiNotice() {
     '<p>MoneySprout has AI guesses and summaries. A computer reads the news headlines and writes them.</p>' +
     '<ul class="plain-bullets"><li>They can be wrong, and a lot of the time they are.</li>' +
     '<li>They are not financial advice.</li>' +
-    '<li>All the money here is pretend, so nothing is a real trade.</li></ul>' +
+    '<li>Nothing here is a real trade.</li></ul>' +
     '<button class="btn block" id="aiOk">Got it</button></div>';
   document.body.appendChild(host);
   document.getElementById('aiOk').onclick = function () {
@@ -37,13 +37,13 @@ async function start() {
   const me = await initShell('dashboard');
   document.getElementById('banner').innerHTML = demoBanner();
   aiNotice();
-  // grey placeholders until the numbers show up
+  // placeholders
   document.getElementById('wallet').innerHTML = '<div class="skel skel-big"></div>';
   ['watch', 'trending', 'activity', 'viewed'].forEach(function (id) {
     document.getElementById(id).innerHTML = skeletonRows(3);
   });
   await load(true);
-  // refresh the prices every 30 seconds while the page is open
+  // refresh every 30s
   setInterval(function () { if (!document.hidden) load(false); }, 30000);
 }
 
@@ -52,7 +52,7 @@ async function load(first) {
   try {
     d = await api('/api/dashboard');
   } catch (e) {
-    // only nag on the first load, later ones just try again next time
+    // only complain on first load
     if (first) toast(e.message, true);
     return;
   }
@@ -60,7 +60,7 @@ async function load(first) {
   const w = d.wallet;
   document.getElementById('wallet').innerHTML =
     statCard('Portfolio value', money(w.total_value), '', '', true, 'Your cash plus what your shares are worth right now.') +
-    statCard('Cash', money(w.cash), '', '', false, 'Pretend money you still have to spend.') +
+    statCard('Cash', money(w.cash), '', '', false, 'Cash you still have to spend.') +
     statCard('Overall', signedMoney(w.profit), pct(w.profit_pct), cls(w.profit), false, 'How much you are up or down compared to what you started with.') +
     statCard('Today', signedMoney(w.day_change), pct(w.day_change_pct), cls(w.day_change), false, 'How your shares did since yesterday\'s close.');
   setWallet(w.cash);
@@ -95,7 +95,7 @@ async function load(first) {
     }).join('');
   }
 
-  // sparklines need the canvases to be on the page first
+  // canvases have to exist first
   const sparks = {};
   d.watchlist.concat(d.trending).forEach(function (i) { sparks[i.ticker] = i.spark; });
   document.querySelectorAll('canvas.spark').forEach(function (c) {

@@ -23,7 +23,7 @@ def search(q: str = "", user=Depends(current_user)):
 
 @router.get("/logo/{ticker}")
 def get_logo(ticker: str):
-    # no login needed, it is only the fixed list of company logos and the landing page shows one
+    # no login, the landing page uses it
     got = logos.get_logo(ticker)
     if not got:
         raise HTTPException(404, "No logo.")
@@ -81,7 +81,7 @@ def get_prediction(ticker: str, range: str = "1Y", user=Depends(current_user)):
     t = must_exist(ticker)
     if range not in RANGES:
         raise HTTPException(400, "Bad range.")
-    # news + scoring is heavier than a price fetch, so it gets its own small limit
+    # news + scoring is heavy, own limit
     if security.too_many("predict:" + str(user["id"]), limit=30, window=60):
         raise HTTPException(429, "Slow down a bit.")
     return predict.predict(t, range)

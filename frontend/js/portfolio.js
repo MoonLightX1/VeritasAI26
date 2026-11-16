@@ -6,7 +6,7 @@ function card(label, value, sub, subClass, main, desc) {
     (desc ? '<div class="desc">' + desc + '</div>' : '') + '</div>';
 }
 
-// adds the fake money, then reloads the numbers
+// demo deposit, then reload
 async function deposit(amount, btn) {
   const done = busy(btn, 'Adding');
   try {
@@ -53,7 +53,7 @@ async function load() {
     setWallet(p.cash);
     document.getElementById('summary').innerHTML =
       card('Portfolio value', money(p.total_value), '', '', true, 'Your cash plus what your shares are worth right now.') +
-      card('Cash', money(p.cash), '', '', false, 'Pretend money you still have to spend.') +
+      card('Cash', money(p.cash), '', '', false, 'Cash you still have to spend.') +
       card('Invested', money(p.invested), '', '', false, 'What you paid for the shares you still have.') +
       card('Up or down', signedMoney(p.profit), pct(p.profit_pct), cls(p.profit), false, 'How much you are up or down compared to what you started with.');
 

@@ -30,8 +30,7 @@ MoneySprout-copy/
 cloudflare/*.json
 *.pem
 
-# ai model weights (big, not copied or committed)
-# leading / and trailing / so the copy script skips the whole folder
+# model weights, too big
 /backend/model/
 
 # downloaded company logos

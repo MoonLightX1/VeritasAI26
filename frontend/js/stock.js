@@ -1,7 +1,7 @@
-// stock page: header, chart, drawing toolbar, buy and sell
+// stock page: chart, drawing tools, buy and sell
 
 const params = new URLSearchParams(location.search);
-// tickers are just letters, anything else in the url gets thrown away
+// tickers are letters only
 const TICKER = /^[A-Za-z]{1,6}$/.test(params.get('t') || '') ? params.get('t').toUpperCase() : '';
 const RANGES = [['1D', '1D'], ['1W', '1W'], ['1M', '1M'], ['3M', '3M'],
   ['6M', '6M'], ['1Y', '1Y'], ['5Y', '5Y'], ['MAX', 'Max']];
@@ -13,10 +13,10 @@ let chart = null;
 let stock = null;
 let range = '1Y';
 let loadToken = 0;
-let view = 'actual';      // 'actual' or 'pred', which graph they are looking at
+let view = 'actual';      // 'actual' or 'pred'
 let predToken = 0;
 let sumToken = 0;
-const predCache = {};     // range -> { at, data }, so flipping back and forth is instant
+const predCache = {};     // range -> { at, data }
 const PRED_FRESH = 5 * 60 * 1000;
 
 function buildRanges() {
@@ -67,7 +67,7 @@ function showSide(on) {
   chart.resize();
 }
 
-// turns what the AI said into plain text for a note
+// ai text for a note
 function predictionNoteText(p) {
   const s = p.sentiment, ai = p.ai || {}, sum = p.summary || {};
   const mood = s.label === 'neutral' ? 'stable' : s.label;
@@ -121,7 +121,7 @@ async function saveToNotes(p, btn) {
   }
 }
 
-// the side panel: why it looks this way, the AI's call, and the AI's summary
+// side panel: why, the ai call, the ai summary
 function renderSide(p) {
   const s = p.sentiment;
   const side = document.getElementById('aiSide');
@@ -187,10 +187,10 @@ function renderPredictInfo(p) {
 
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-// the popup that shows what the prediction is doing, step by step
+// progress popup
 function openProgress(onCancel) {
   const host = document.getElementById('modalHost');
-  // one icon set: 16px, same stroke
+  // icons, 16px
   const svg = function (d) { return '<svg class="i" viewBox="0 0 16 16" aria-hidden="true">' + d + '</svg>'; };
   const icons = {
     pending: svg('<circle cx="8" cy="8" r="5.5"/>'),
@@ -211,7 +211,7 @@ function openProgress(onCancel) {
   document.getElementById('pgCancel').onclick = onCancel;
   return {
     update: function (st) {
-      // someone else is being reviewed, so we wait in line
+      // waiting in line
       if (st.queued) {
         document.getElementById('pgSub').textContent = 'You are in line, spot #' + st.position;
         document.getElementById('pgHint').textContent = 'Someone else is up first. Yours starts when they finish, so feel free to leave this open.';
@@ -235,7 +235,7 @@ function openProgress(onCancel) {
   };
 }
 
-// leaves the line if we are still waiting, does nothing if it already started
+// leave the line if still waiting
 function cancelJob(jid) {
   if (!jid) return;
   api('/api/stocks/job/' + jid + '/cancel', { method: 'POST' }).catch(function () {});
@@ -266,7 +266,7 @@ async function loadPrediction() {
   let fails = 0;
   while (true) {
     await sleep(700);
-    if (mine !== predToken || view !== 'pred') { pop.close(); cancelJob(jid); return; } // cancelled or changed range
+    if (mine !== predToken || view !== 'pred') { pop.close(); cancelJob(jid); return; } // cancelled or range changed
     let st;
     try {
       st = await api('/api/stocks/job/' + jid);
@@ -279,7 +279,7 @@ async function loadPrediction() {
     pop.update(st);
     if (!st.done) continue;
     if (st.error) { pop.fail(st.error); return; }
-    await sleep(900); // let them see the last steps tick over
+    await sleep(900); // let the last steps show
     if (mine !== predToken || view !== 'pred') { pop.close(); return; }
     pop.close();
     predCache[range] = { at: Date.now(), data: st.result };
@@ -341,19 +341,19 @@ async function loadHistory() {
   const mine = ++loadToken;
   try {
     const h = await api('/api/stocks/' + TICKER + '/history?range=' + range);
-    if (mine !== loadToken) return; // they clicked another range already
+    if (mine !== loadToken) return; // picked another range
     chart.setData(h.points, h.intraday, h.timezone);
     msg.classList.add('hidden');
     if (view === 'pred') loadPrediction();
   } catch (e) {
-    // show the error and a button so they can try again
+    // error and retry button
     msg.innerHTML = '<div style="text-align:center;padding:0 16px"><div>' + esc(e.message) +
       '</div><button class="btn light sm" id="retryChart" style="margin-top:10px">Try again</button></div>';
     document.getElementById('retryChart').onclick = loadHistory;
   }
 }
 
-// keeps the price and chart live while the page is open
+// live price and chart
 async function liveRefresh() {
   if (document.hidden || !chart || !stock) return;
   try {
@@ -361,7 +361,7 @@ async function liveRefresh() {
     const was = stock.quote.price;
     stock.quote = s.quote;
     renderHead();
-    // short flash when the price moves
+    // flash when the price moves
     if (s.quote.price !== was) {
       const el = document.querySelector('#head .price');
       if (el) el.classList.add(s.quote.price > was ? 'flash-up' : 'flash-down');
@@ -371,7 +371,7 @@ async function liveRefresh() {
     if (mine !== loadToken || h.range !== range) return;
     chart.refreshData(h.points);
   } catch (e) {
-    // quiet, it will try again in a bit
+    // quiet, tries again
   }
 }
 
@@ -555,7 +555,7 @@ function openTrade(mode) {
 }
 
 async function refreshAfterTrade() {
-  // pull fresh wallet and holdings so the page matches
+  // refresh wallet and holdings
   const me = await api('/api/auth/me');
   window.ME = me;
   setWallet(me.wallet.cash);

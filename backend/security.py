@@ -31,7 +31,7 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,20}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-# a few of the most used passwords, not a full list but it stops the worst ones
+# a few common passwords, not a full list
 COMMON = {
     "password1", "password12", "password123", "password1234", "passw0rd123", "qwerty12345", "qwertyuiop1",
     "1234567890a", "abcdefghij1", "iloveyou123", "letmein1234", "welcome1234", "admin12345", "moneysprout1",
@@ -52,14 +52,14 @@ def password_problem(pw, username=""):
     return None
 
 
-# sessions are stored as a hash, so a leaked database file does not hand out working logins
+# sessions are stored hashed so a leaked db is not a leaked login
 def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 def new_session(db, user_id, remember):
     token = secrets.token_urlsafe(32)
-    # clean out dead sessions while we are here
+    # clear expired sessions
     db.execute("DELETE FROM sessions WHERE expires_at < ?", (dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",))
     if remember:
         exp = dt.datetime.utcnow() + dt.timedelta(days=REMEMBER_DAYS)
@@ -76,7 +76,7 @@ def new_session(db, user_id, remember):
 # fake hash so a wrong username takes as long as a wrong password
 DUMMY_HASH = hash_password("not-a-real-password-1")
 
-# in memory rate limit. fine for one server process, resets when the app restarts
+# in memory rate limit, resets on restart
 _hits = {}
 _hits_lock = threading.Lock()
 MAX_KEYS = 20000
@@ -88,13 +88,13 @@ def too_many(key, limit=10, window=300):
         arr = [x for x in _hits.get(key, []) if t - x < window]
         arr.append(t)
         _hits[key] = arr
-        # do not let the dict grow forever, even if someone sends tons of random keys
+        # keep the dict from growing forever
         if len(_hits) > MAX_KEYS // 2:
             for k in list(_hits.keys()):
                 if not _hits[k] or t - _hits[k][-1] > 3600:
                     del _hits[k]
             if len(_hits) > MAX_KEYS:
-                # still too big, drop the oldest half
+                # still big, drop the oldest half
                 old = sorted(_hits.keys(), key=lambda k: _hits[k][-1] if _hits[k] else 0)
                 for k in old[: len(old) // 2]:
                     del _hits[k]

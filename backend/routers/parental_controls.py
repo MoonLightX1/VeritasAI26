@@ -7,9 +7,8 @@ from services import portfolio as pf
 
 router = APIRouter(prefix="/api/parental-controls", tags=["parental"])
 
-# there are no real parent accounts yet
-# approve and deny here are just the demo override, only work in DEMO_MODE
-# and they are saved with demo_override = 1 so nobody thinks it is real permission
+# no real parent accounts yet
+# approve and deny are just the demo override (DEMO_MODE only), saved with demo_override = 1
 
 
 def history(db, uid):

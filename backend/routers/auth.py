@@ -24,19 +24,20 @@ class ParentBody(BaseModel):
 
 
 class SignupBody(BaseModel):
-    first_name: str = Field(min_length=1, max_length=40)
-    last_name: str = Field(min_length=1, max_length=40)
-    username: str = Field(max_length=40)
-    email: str = Field(max_length=120)
+    # only the password and a username or email are required, the rest is optional
+    first_name: str = Field(default="", max_length=40)
+    last_name: str = Field(default="", max_length=40)
+    username: str = Field(default="", max_length=40)
+    email: str = Field(default="", max_length=120)
     password: str = Field(max_length=200)
     confirm_password: str = Field(max_length=200)
-    birth_date: str = Field(max_length=20)
-    country: str = Field(min_length=1, max_length=60)
-    region: str = Field(min_length=1, max_length=60)
-    grade: str = Field(max_length=30)
+    birth_date: str = Field(default="", max_length=20)
+    country: str = Field(default="", max_length=60)
+    region: str = Field(default="", max_length=60)
+    grade: str = Field(default="", max_length=30)
     school: str = Field(default="", max_length=80)
-    experience: str = Field(max_length=30)
-    goal: str = Field(max_length=30)
+    experience: str = Field(default="", max_length=30)
+    goal: str = Field(default="", max_length=30)
     interests: List[str] = Field(default=[], max_length=20)
     heard_from: str = Field(default="", max_length=80)
     accept_terms: bool = False
@@ -66,20 +67,19 @@ class DeleteBody(BaseModel):
 def set_cookie(response, token, exp, remember):
     kwargs = dict(httponly=True, samesite="strict", secure=COOKIE_SECURE, path="/")
     if remember:
-        # only remember sessions get a real expiry, others die with the browser
+        # only "remember me" gets an expiry
         kwargs["expires"] = exp.strftime("%a, %d %b %Y %H:%M:%S GMT")
     response.set_cookie(COOKIE_NAME, token, **kwargs)
 
 
 def kill_cookie(response):
-    # has to repeat the same flags, or the browser may ignore the delete
+    # same flags as when it was set
     response.delete_cookie(COOKIE_NAME, path="/", secure=COOKIE_SECURE, httponly=True, samesite="strict")
 
 
 def client_ip(request):
     peer = request.client.host if request.client else "unknown"
-    # cloudflare puts the real visitor ip in this header. only believe it when the request
-    # came from the tunnel on this same machine, otherwise anyone could fake it
+    # real ip is in the cloudflare header, but only trust it from the tunnel
     if peer in ("127.0.0.1", "::1"):
         cf = request.headers.get("cf-connecting-ip")
         if cf and len(cf) < 64:
@@ -89,7 +89,7 @@ def client_ip(request):
 
 @router.get("/config")
 def config():
-    # public, pages use it to know if demo accounts are allowed
+    # public, pages check if demo accounts are on
     return {"demo_mode": DEMO_MODE}
 
 
@@ -104,25 +104,22 @@ def username_check(username: str, request: Request, db=Depends(get_db)):
 
 
 def check_parent(p, own_email):
-    # returns a clean dict or raises
+    # parent info is optional. returns a clean dict, or None if nothing was filled in
     if p is None:
-        raise HTTPException(400, "Parent or guardian info is required.")
+        return None
     name = p.full_name.strip()
     email = p.email.strip().lower()
     phone = p.phone.strip()
-    if len(name) < 2:
-        raise HTTPException(400, "Enter your parent or guardian's full name.")
-    if p.relationship not in accounts.RELATIONSHIPS:
+    rel = p.relationship
+    if not (name or email or phone or rel):
+        return None
+    if rel and rel not in accounts.RELATIONSHIPS:
         raise HTTPException(400, "Pick how your parent or guardian is related to you.")
-    if not security.EMAIL_RE.match(email) or len(email) > 120:
+    if email and (not security.EMAIL_RE.match(email) or len(email) > 120):
         raise HTTPException(400, "Your parent or guardian's email does not look right.")
-    if email == own_email:
+    if email and email == own_email:
         raise HTTPException(400, "Use your parent or guardian's email, not your own.")
-    if len(re.sub(r"\D", "", phone)) < 7:
-        raise HTTPException(400, "Enter a phone number for your parent or guardian.")
-    if not p.consent:
-        raise HTTPException(400, "Your parent or guardian needs to know about this account. Check the box to confirm.")
-    return {"full_name": name, "relationship": p.relationship, "email": email, "phone": phone}
+    return {"full_name": name, "relationship": rel, "email": email, "phone": phone, "consent": bool(p.consent)}
 
 
 @router.post("/signup")
@@ -132,47 +129,55 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
 
     username = body.username.strip()
     email = body.email.strip().lower()
-    if not security.USERNAME_RE.match(username):
-        raise HTTPException(400, "Username must be 3 to 20 letters, numbers or underscores.")
-    if username.lower() == "demo":
-        raise HTTPException(400, "That username is taken.")
-    if not security.EMAIL_RE.match(email) or len(email) > 120:
+    if not username and not email:
+        raise HTTPException(400, "Enter a username or an email.")
+    if username:
+        if not security.USERNAME_RE.match(username):
+            raise HTTPException(400, "Username must be 3 to 20 letters, numbers or underscores.")
+        if username.lower() == "demo":
+            raise HTTPException(400, "That username is taken.")
+    if email and (not security.EMAIL_RE.match(email) or len(email) > 120 or email.endswith(accounts.NO_EMAIL)):
         raise HTTPException(400, "That email does not look right.")
-    problem = security.password_problem(body.password, username)
+    # the database needs both, so a missing one gets a placeholder (shows as N/A in settings)
+    if not username:
+        username = accounts.placeholder_username()
+    if not email:
+        email = username.lower() + accounts.NO_EMAIL
+    problem = security.password_problem(body.password, "" if "-" in username else username)
     if problem:
         raise HTTPException(400, problem)
     if body.password != body.confirm_password:
         raise HTTPException(400, "Passwords do not match.")
 
-    # age comes from the birthday now, not a dropdown
-    try:
-        birth = dt.date.fromisoformat(body.birth_date)
-    except ValueError:
-        raise HTTPException(400, "Enter your birthday.")
-    age = accounts.age_on(birth)
-    if age < 6 or age > 110:
-        raise HTTPException(400, "That birthday does not look right. You must be at least 6 to sign up.")
-    band = accounts.band_for_age(age)
+    birth = None
+    band = "unknown"
+    if body.birth_date.strip():
+        try:
+            birth = dt.date.fromisoformat(body.birth_date.strip())
+        except ValueError:
+            raise HTTPException(400, "That birthday does not look right.")
+        age = accounts.age_on(birth)
+        if age < 6 or age > 110:
+            raise HTTPException(400, "That birthday does not look right. You must be at least 6 to sign up.")
+        band = accounts.band_for_age(age)
 
-    if body.grade not in accounts.GRADES:
+    if body.grade and body.grade not in accounts.GRADES:
         raise HTTPException(400, "Pick your school level.")
-    if body.experience not in accounts.EXPERIENCE:
+    if body.experience and body.experience not in accounts.EXPERIENCE:
         raise HTTPException(400, "Pick how much you know about investing.")
-    if body.goal not in accounts.GOALS:
+    if body.goal and body.goal not in accounts.GOALS:
         raise HTTPException(400, "Pick what you want to get out of MoneySprout.")
     interests = [i for i in body.interests if i in accounts.INTERESTS]
-    if not interests:
-        raise HTTPException(400, "Pick at least one interest.")
     if not body.accept_terms:
         raise HTTPException(400, "Please agree to the rules to continue.")
 
-    # every account is a demo account and always needs parent info
     parent = check_parent(body.parent, email)
 
+    first = body.first_name.strip()
     details = {
-        "first_name": body.first_name.strip(),
+        "first_name": first,
         "last_name": body.last_name.strip(),
-        "birth_date": birth.isoformat(),
+        "birth_date": birth.isoformat() if birth else "",
         "country": body.country.strip(),
         "region": body.region.strip(),
         "grade": body.grade,
@@ -182,8 +187,10 @@ def signup(body: SignupBody, request: Request, response: Response, db=Depends(ge
         "interests": interests,
         "heard_from": body.heard_from.strip(),
     }
+    # what shows in the top bar
+    shown = first or ("" if "-" in username else username) or (email.split("@")[0] if not email.endswith(accounts.NO_EMAIL) else "") or "Player"
     try:
-        uid = accounts.create_user(db, username, email, body.password, details["first_name"], band,
+        uid = accounts.create_user(db, username, email, body.password, shown, band,
                                    is_demo=True, details=details, parent=parent)
     except sqlite3.IntegrityError:
         db.rollback()
@@ -198,14 +205,14 @@ def login(body: LoginBody, request: Request, response: Response, db=Depends(get_
     if security.too_many("login:" + client_ip(request)):
         raise HTTPException(429, "Too many tries, wait a few minutes.")
     ident = body.identifier.strip()[:120]
-    # also limit per account so one account cannot be guessed from many ips
+    # limit per account too
     if security.too_many("login-user:" + ident.lower(), limit=8, window=600):
         raise HTTPException(429, "Too many tries, wait a few minutes.")
     row = db.execute(
         "SELECT * FROM users WHERE username = ? OR email = ?", (ident, ident)
     ).fetchone()
     if not row:
-        # still do the slow hash so timing does not give away which usernames exist
+        # still hash so timing does not leak which usernames exist
         security.check_password(body.password[:200], security.DUMMY_HASH)
         raise HTTPException(401, "Wrong username or password.")
     if not security.check_password(body.password[:200], row["password_hash"]):
@@ -254,7 +261,7 @@ def change_password(body: PasswordBody, request: Request, user=Depends(current_u
     db.execute(
         "UPDATE users SET password_hash = ? WHERE id = ?", (security.hash_password(body.new_password), user["id"])
     )
-    # log out every other device, keep this one
+    # log out other devices
     db.execute("DELETE FROM sessions WHERE user_id = ? AND token != ?", (user["id"], security.hash_token(request.cookies.get(COOKIE_NAME, ""))))
     db.commit()
     return {"ok": True}

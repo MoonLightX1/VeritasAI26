@@ -19,7 +19,7 @@ from routers import (auth, stocks, portfolio, watchlist, notes, annotations,
 
 app = FastAPI(title="MoneySprout", docs_url=None, redoc_url=None, openapi_url=None)
 
-# only answer for moneysprout.renengine.com (the cloudflare tunnel passes that host through)
+# only answer to our own hostname
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 init_db()
@@ -29,8 +29,7 @@ MAX_BODY = 400_000
 OUR_HOSTS = set(h.split(":")[0].lower() for h in ALLOWED_HOSTS)
 WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 
-# no CORS middleware on purpose. the site only talks to itself, so browsers on other
-# sites are not allowed to read our api. do not add one unless you really need it.
+# no CORS on purpose, the site only talks to itself
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
        "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
@@ -43,13 +42,13 @@ def deny(code, msg):
     return JSONResponse(status_code=code, content={"detail": msg})
 
 
-# one place for the security checks and headers
+# security checks and headers all live here
 @app.middleware("http")
 async def guard(request: Request, call_next):
     path = request.url.path
     is_api = path.startswith("/api")
 
-    # send http visitors to https (cloudflare tells us which one they used)
+    # http -> https
     if COOKIE_SECURE:
         proto = request.headers.get("x-forwarded-proto", "").lower()
         visitor = request.headers.get("cf-visitor", "")
@@ -60,7 +59,7 @@ async def guard(request: Request, call_next):
             return RedirectResponse(target, status_code=308)
 
     if request.method in WRITE_METHODS:
-        # csrf: a browser tells us where the request came from, it has to be us
+        # csrf check, the request has to come from us
         origin = request.headers.get("origin")
         if origin and (urlparse(origin).hostname or "").lower() not in OUR_HOSTS:
             logging.getLogger("moneysprout").warning("blocked: origin %s", origin[:100])
@@ -69,29 +68,28 @@ async def guard(request: Request, call_next):
             logging.getLogger("moneysprout").warning("blocked: cross-site request")
             return deny(403, "Blocked: this request came from another site.")
         if is_api:
-            # a plain html form on another site cannot add this header or send json,
-            # and a script on another site would need cors, which we never allow
+            # other sites cannot add this header
             if request.headers.get("x-requested-with") != "moneysprout":
-                # almost always an old cached app.js, so say so
+                # usually an old cached app.js
                 logging.getLogger("moneysprout").warning("blocked: missing x-requested-with on %s", path)
                 return deny(403, "Blocked: your browser is running an old copy of the site. Hard refresh with Ctrl+Shift+R.")
             cl = request.headers.get("content-length")
             ctype = request.headers.get("content-type", "").split(";")[0].strip().lower()
             if cl and cl != "0" and ctype != "application/json":
                 return deny(415, "Send json.")
-        # no giant bodies, and no chunked uploads that skip the size check
+        # no huge bodies
         if request.headers.get("transfer-encoding"):
             return deny(411, "Send a content length.")
         cl = request.headers.get("content-length")
         if cl and (not cl.isdigit() or int(cl) > MAX_BODY):
             return deny(413, "That is too big.")
 
-    # overall limit per visitor so nobody hammers the api (and our yahoo budget)
+    # rate limit per visitor
     if is_api:
         ip = client_ip(request)
         if security.too_many("api:" + ip, limit=600, window=60):
             return deny(429, "Slow down a bit.")
-        # writes get a tighter limit
+        # writes get a smaller limit
         if request.method in WRITE_METHODS and security.too_many("write:" + ip, limit=150, window=60):
             return deny(429, "Slow down a bit.")
 
@@ -110,18 +108,17 @@ async def guard(request: Request, call_next):
     if is_api:
         resp.headers["Cache-Control"] = "no-store"
     else:
-        # never cache pages or scripts, not in the browser and not at cloudflare,
-        # so an old app.js can never be served against a newer backend
+        # no caching, so an old app.js never runs against a new backend
         resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
-# if the market data provider is down, say so instead of crashing
+# yahoo down, say so instead of crashing
 @app.exception_handler(MarketUnavailable)
 def market_down(request: Request, exc: MarketUnavailable):
     return JSONResponse(status_code=503, content={"detail": "Live market data is not available right now. " + str(exc) + " Try again in a minute."})
 
-# bad input: say what is wrong but never send the person's input (like a password) back
+# bad input: say what is wrong, never echo it back (like a password)
 @app.exception_handler(RequestValidationError)
 def bad_input(request: Request, exc: RequestValidationError):
     errs = exc.errors()
@@ -131,7 +128,7 @@ def bad_input(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": [{"msg": msg}]})
 
 
-# anything unexpected: log it here, show nothing about it
+# anything unexpected gets logged, user just sees a generic error
 @app.exception_handler(Exception)
 def oops(request: Request, exc: Exception):
     logging.getLogger("moneysprout").exception("unhandled error on %s", request.url.path)
@@ -148,7 +145,7 @@ app.include_router(parental_controls.router)
 app.include_router(dashboard.router)
 
 
-# every page name that has an html file, so /login works without .html
+# so /login works without .html
 PAGES = set(f[:-5] for f in os.listdir(FRONTEND_DIR) if f.endswith(".html"))
 
 
@@ -159,20 +156,21 @@ def home():
 
 @app.get("/{page}")
 def serve_page(page: str, request: Request):
-    # old links with .html just bounce to the clean one
+    # .html links redirect to the clean url
     if page.endswith(".html"):
         name = page[:-5]
         target = "/" if name == "index" else "/" + name
         if request.url.query:
             target += "?" + request.url.query
         return RedirectResponse(target, status_code=307)
-    # only names from the list above, so nobody can ask for random files
+    # only names from the list, no random files
     if page in PAGES and page != "index":
         return FileResponse(os.path.join(FRONTEND_DIR, page + ".html"))
     return PlainTextResponse("Not found", status_code=404)
 
 
-# css and js folders are plain static files
+# static folders
 app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
 app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
 app.mount("/fonts", StaticFiles(directory=os.path.join(FRONTEND_DIR, "fonts")), name="fonts")
+app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")

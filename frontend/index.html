@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MoneySprout - Try the stock market with pretend money</title>
-  <script src="js/theme.js?v=13"></script>
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <title>MoneySprout</title>
+  <link rel="icon" type="image/png" href="/assets/moneysprout-icon.png">
+  <script src="js/theme.js?v=14"></script>
+  <link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
   <div class="pub-nav">
-    <a class="brand" href="/">Money<span>Sprout</span></a>
+    <span class="muted small">Hackathon project, Finance track</span>
     <div class="right-side">
       <span id="themeSlot"></span>
       <a href="login">Log in</a>
@@ -17,11 +18,16 @@
   </div>
 
   <div class="hero">
-    <div class="hero-copy">
-      <h1>Try trading real stocks with $10,000 of pretend money</h1>
-      <p class="lead">Check out live price charts for 20 companies you have probably heard of, peek at a forecast based on the news, and buy and sell with fake cash. Nothing you do here can cost you real money.</p>
-      <div class="actions">
-        <a class="btn lg" href="signup">Start with $10,000</a>
+    <div class="hero-top">
+      <img class="hero-logo logo-light" src="/assets/moneysprout.png" width="632" height="575" alt="MoneySprout">
+      <img class="hero-logo logo-dark" src="/assets/moneysprout-dark.png" width="632" height="575" alt="MoneySprout">
+      <div class="hero-copy">
+        <h1>A stock trading demo we built for a hackathon</h1>
+        <p class="lead">Look at real prices for 20 big companies, make trades with a $10,000 starting balance, and see a forecast based on the news. We made it so children can learn how the market works without risking anything.</p>
+        <div class="actions">
+          <a class="btn lg" href="signup">Try it</a>
+          <a class="btn lg light" href="login">Log in</a>
+        </div>
       </div>
     </div>
 
@@ -63,39 +69,27 @@
           </ul>
         </div>
       </div>
-      <p class="muted small preview-note">Just an example with made up numbers. The real page uses live prices and today's news.</p>
+      <p class="muted small preview-note">Example with made up numbers. The real page uses live prices and today's news.</p>
     </div>
   </div>
 
   <div class="section">
-    <h2>Look at a chart, make a move, remember why</h2>
+    <h2>What's in it</h2>
     <ul class="plain-list">
-      <li><b>Charts</b><span>Zoom in, drag around and hover over the prices, from just today all the way back. You can save any chart as a picture too.</span></li>
-      <li><b>Drawing</b><span>Doodle on the chart with lines, arrows, boxes, circles and text. They stay right where you drew them.</span></li>
-      <li><b>Portfolio</b><span>See your cash, what you own, how you are doing, and every practice trade you have made.</span></li>
-      <li><b>Watchlist</b><span>Keep an eye on companies you like without buying a thing.</span></li>
-      <li><b>Notes</b><span>Jot down why you made a move, then come back later and see if you were right.</span></li>
+      <li><b>Charts</b><span>Zoom, drag and hover. You can draw on them and save them as a picture.</span></li>
+      <li><b>Forecast</b><span>A dashed line and shaded range built from recent prices and news headlines.</span></li>
+      <li><b>Portfolio</b><span>Your cash, your shares, and every trade you made.</span></li>
+      <li><b>Watchlist and notes</b><span>Follow companies, and write down why you made a move.</span></li>
     </ul>
   </div>
 
-  <div class="section">
-    <div class="safety">
-      <h2>Under 18? A parent says okay first</h2>
-      <ul>
-        <li>You add a parent or guardian when you sign up.</li>
-        <li>The prices are real, just up to about 15 minutes behind.</li>
-        <li>Nothing here is financial advice, it is just for learning.</li>
-      </ul>
-    </div>
+  <div class="section team">
+    <h2>Who made it</h2>
+    <p>Nickolas Bogert and Thi Minh Chau Pham.</p>
   </div>
 
-  <div class="cta">
-    <h2>Your $10,000 is waiting for you</h2>
-    <a class="btn lg" href="signup">Start with $10,000</a>
-  </div>
+  <div class="footer">Demo only, no real trades happen here. Prices come from Yahoo Finance and can be about 15 minutes late. Not financial advice.</div>
 
-  <div class="footer">Just for learning. Prices come from Yahoo Finance and may be a bit late. No real trades happen here.</div>
-
-  <script src="js/index.js?v=13"></script>
+  <script src="js/index.js?v=14"></script>
 </body>
 </html>

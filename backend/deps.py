@@ -7,7 +7,7 @@ from database import get_db
 from security import hash_token
 
 
-# figure out who is logged in from the cookie
+# who is logged in, from the cookie
 def current_user(request: Request, db=Depends(get_db)):
     token = request.cookies.get(COOKIE_NAME)
     if not token or len(token) > 200:
